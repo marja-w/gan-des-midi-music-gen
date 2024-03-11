@@ -70,13 +70,13 @@ class MidiGenerator:
             else:
                 self.queue_lengths[array3] = 1
 
-            self.track.append(mido.Message('note_on', channel=0, note=self.note_offsets[array3], velocity=int(self.queue_lengths[array3])%127,  time=int(math.floor(float(array1))))) # time needs to be changed to something else... maybe server processing time?
+            self.track.append(mido.Message('note_on', channel=0, note=self.note_offsets[array3], velocity=max(int(self.queue_lengths[array3])%127, 60),  time=int(math.floor(float(array1))))) # time needs to be changed to something else... maybe server processing time?
         elif array4 == 'departure' and int(array2) % 2 == 0:  # TEMP FIX (array2 % 2 == 0) - need to change this to something else... maybe server processing time?::
             if array3 in self.queue_lengths:
                 self.queue_lengths[array3] -= 1
             else:
                 self.queue_lengths[array3] = 0
-            self.track.append(mido.Message('note_off', channel=0, note=self.note_offsets[array3], velocity=int(self.queue_lengths[array3]%127), time=int(math.ceil(float(array1)))))  # time needs to be changed to something else... maybe server processing time?
+            self.track.append(mido.Message('note_off', channel=0, note=self.note_offsets[array3], velocity=max(int(self.queue_lengths[array3]%127), 60), time=int(math.ceil(float(array1)))))  # time needs to be changed to something else... maybe server processing time?
 
 
     def save_midi(self):
