@@ -19,3 +19,7 @@ TODO
 
 - Sadie set up Discrete Event Simulator, output is good, but ranges of notes need to be improved
 - goal for next meeting: Marja set up CNN for generator (generate input parameters for discrete event simulator) and discriminator (binary classifier for spectrogram of generated midi-file and original spectrogram)
+
+##
+
+- generator input: should it be a random noise vector, rather than the original song excerpt? the original song excerpt should only be used as input for discriminator?
