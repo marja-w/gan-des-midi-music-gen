@@ -28,3 +28,5 @@ TODO
 - pretrain on bigger data corpus, finetune on song data
 - randomly manipulate song data, randomly add data from one song together to create more data, ...
 - first only train on songs from one genre to have more data, then think about finetuning
+- Sadie: create useful output from simulator for discriminator
+- Marja: fix dimensions of GAN, input for simulator: nxn matrix, n=16, 16x20, values from 0-1
