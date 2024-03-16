@@ -20,6 +20,13 @@ TODO
 - Sadie set up Discrete Event Simulator, output is good, but ranges of notes need to be improved
 - goal for next meeting: Marja set up CNN for generator (generate input parameters for discrete event simulator) and discriminator (binary classifier for spectrogram of generated midi-file and original spectrogram)
 
-##
 
-- generator input: should it be a random noise vector, rather than the original song excerpt? the original song excerpt should only be used as input for discriminator?
+## 13th March
+
+- Marja started implementing the GAN structure according to this website: https://freedium.cfd/https://medium.com/geekculture/deep-convolutional-generative-adversarial-network-using-pytorch-ece1260acc47
+- problem: how do we generate enough data to train on from just one song?
+- pretrain on bigger data corpus, finetune on song data
+- randomly manipulate song data, randomly add data from one song together to create more data, ...
+- first only train on songs from one genre to have more data, then think about finetuning
+- Sadie: create useful output from simulator for discriminator
+- Marja: fix dimensions of GAN, input for simulator: nxn matrix, n=16, 16x20, values from 0-1
