@@ -30,3 +30,10 @@ TODO
 - first only train on songs from one genre to have more data, then think about finetuning
 - Sadie: create useful output from simulator for discriminator
 - Marja: fix dimensions of GAN, input for simulator: nxn matrix, n=16, 16x20, values from 0-1
+
+## 17th March
+
+- Marja updated the output dimensions of GAN networks
+- Sadie implemented midi to audio file converter and made changes to simulator
+- Marja: randomly slice the input audio for more input clips of 5 seconds, requirements.txt
+- Sadie: connect simulator to GAN 
