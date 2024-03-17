@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 
 from util import get_melspectrogram_db
 
+from matrix_sim_process import matrix_to_wav
+
 
 def display_images(image_tensor, num_images=25, size=(1, 28, 28)):
     flatten_image = image_tensor.detach().cpu().view(-1, *size)
@@ -206,6 +208,7 @@ class SimNN(nn.Module):
     def error_system(output):
         # This function should simulate the system with the given output and return the error.
         # This is a placehold
+        numpy_melspectro_output = matrix_to_wav([output])
         error = None
         return error
 

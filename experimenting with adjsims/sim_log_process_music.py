@@ -8,7 +8,7 @@ import random
 
 # create a class that handles processed_line tuples and generates a midi file based on the data
 class MidiGenerator:
-    def __init__(self, n, baseline=80, range=30, instruments=[]):
+    def __init__(self, n, baseline=80, range=30, instruments=[], note_levels=[]):
         self.n = n
         self.baseline = baseline
         self.range = range
@@ -16,6 +16,8 @@ class MidiGenerator:
         self.mid = mido.MidiFile()
 
         self.note_offsets = {}
+        for i,note_level in enumerate(note_levels):
+            self.note_offsets[i] = note_level
 
         self.queue_lengths = {}
 
@@ -96,28 +98,28 @@ class MidiGenerator:
             self.future_events[array3]['service_time'] = 0
 
             #self.track.append(mido.Message('note_on', channel=0, note=self.note_offsets[array3], velocity=velocity,  time=midi_time)) # time needs to be changed to something else... maybe server processing time?
-            #self.track.append(mido.Message('note_on', channel=0, note=int(array2)%127, velocity=velocity,  time=midi_time))
+            self.track.append(mido.Message('note_on', channel=0, note=int(array2)%127, velocity=velocity,  time=midi_time))
 
         elif array4 == 'departure' and  ( int(array2) % 3 == 0 or int(array2) % 5 == 0 ):
 
-            if array3 in self.future_events:
-                self.track.append(mido.Message('note_on', channel=0, note=self.note_offsets[array3], velocity=self.future_events[array3]['velocity'], time=midi_time-self.future_events[array3]['time']))  # time needs to be changed to something else... maybe server processing time?
+            #if array3 in self.future_events:
+                #self.track.append(mido.Message('note_on', channel=0, note=self.note_offsets[array3], velocity=self.future_events[array3]['velocity'], time=midi_time-self.future_events[array3]['time']))  # time needs to be changed to something else... maybe server processing time?
                 
-                #self.track.append(mido.Message('note_off', channel=0, note=int(array2)%127, velocity=velocity, time=midi_time))  # time needs to be changed to something else... maybe server processing time?
-                self.track.append(mido.Message('note_off', channel=0, note=self.note_offsets[array3], velocity=self.future_events[array3]['velocity'], time=self.future_events[array3]['time']+self.future_events[array3]['service_time']*5))
-
-            else:
-                self.track.append(mido.Message('note_on', channel=0, note=self.note_offsets[array3], velocity=velocity, time=midi_time))
+                # time needs to be changed to something else... maybe server processing time?
+                #self.track.append(mido.Message('note_off', channel=0, note=self.note_offsets[array3], velocity=velocity, time=midi_time-self.future_events[array3]['time']))
+            #else:
+                #self.track.append(mido.Message('note_on', channel=0, note=self.note_offsets[array3], velocity=velocity, time=midi_time))
 
             if array3 in self.queue_lengths:
                 self.queue_lengths[array3] -= 1
             else:
                 self.queue_lengths[array3] = 0
+            self.track.append(mido.Message('note_off', channel=0, note=int(array2)%127, velocity=velocity, time=midi_time)) 
 
         elif array4 == 'processing' and  ( int(array2) % 3 == 0 or int(array2) % 5 == 0 ):
             self.future_events[array3]['service_time'] = midi_time
 
-    def save_midi(self):
+    def save_midi(self, filename='output.mid'):
         # add the end of track message
         self.track.append(mido.MetaMessage('end_of_track'))
 
@@ -125,7 +127,7 @@ class MidiGenerator:
         self.mid.tracks.append(self.track)
 
         # save the midi file
-        self.mid.save('output.mid')
+        self.mid.save(filename)
 
 
 
@@ -142,14 +144,14 @@ class LogLineProcessor:
 
 import numpy as np
 
-def process_adjsim_log(n=2000, baseline=70, range=50, instruments=np.arange(0,16)):
+def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16), note_levels=np.random.randint(0, 127, 16)):
     # Example usage:
     log_processor = LogLineProcessor(r"INFO:root:([0-9]*\.[0-9]+|[0-9]+) - ([0-9]*\.[0-9]+|[0-9]+) - ([0-9]*\.[0-9]+|[0-9]+) - (arrival|departure)")
 
     count = 0
     max = 2000
 
-    midi_generator = MidiGenerator(n=max, baseline=baseline, range=range, instruments=instruments)
+    midi_generator = MidiGenerator(n=max, baseline=baseline, range=range, instruments=instruments, note_levels=note_levels)
 
 
     # Read the log file line by line
@@ -162,5 +164,8 @@ def process_adjsim_log(n=2000, baseline=70, range=50, instruments=np.arange(0,16
             if processed_line:
                 midi_generator.process_line(processed_line)
 
+    filepath = 'adj_sim_outputs\midi\output.mid' # need to change this if we want to keep the original midi files, not necessary for now
+    # save the output midi to /adj_sim_output/midi/output.mid
+    midi_generator.save_midi(filename=filepath) 
 
-    midi_generator.save_midi()
+    return filepath 
