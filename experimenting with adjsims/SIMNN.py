@@ -70,7 +70,7 @@ class InputSong(Dataset):
         for i in np.arange(0, len(waveform[channel]) + 1, hop_length_audio * sample_rate):
             if i + hop_length_audio * sample_rate > len(waveform[channel]):
                 # make sure last sample is as long as the others
-                self.audio_files.append(waveform[channel][-hop_length_audio*sample_rate:])
+                self.audio_files.append(waveform[channel][-hop_length_audio * sample_rate:])
             else:
                 self.audio_files.append(waveform[channel][i:i + hop_length_audio * sample_rate])
 
@@ -100,58 +100,44 @@ class Generator(nn.Module):
 
     def __init__(self, no_of_channels=1, noise_dim=100, gen_dim=32):
         super(Generator, self).__init__()
-        self.network = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=noise_dim, out_channels=gen_dim * 4, kernel_size=4, stride=1, padding=0,
-                               bias=False),
-            nn.BatchNorm2d(gen_dim * 4),
-            nn.ReLU(True),
-
-            nn.ConvTranspose2d(in_channels=gen_dim * 4, out_channels=gen_dim * 2, kernel_size=3, stride=2, padding=1,
-                               bias=False),
-            nn.BatchNorm2d(gen_dim * 2),
-            nn.ReLU(True),
-
-            nn.ConvTranspose2d(in_channels=gen_dim * 2, out_channels=gen_dim, kernel_size=4, stride=2, padding=1,
-                               bias=False),
-            nn.BatchNorm2d(gen_dim),
-            nn.ReLU(True),
-
-            nn.ConvTranspose2d(in_channels=gen_dim, out_channels=no_of_channels, kernel_size=4, stride=2, padding=1,
-                               bias=False),
-            nn.Tanh()
-        )
+        self.conv1 = nn.ConvTranspose2d(in_channels=noise_dim, out_channels=gen_dim * 4, kernel_size=4, stride=1, padding=0,
+                               bias=False)
+        self.conv2 = nn.ConvTranspose2d(in_channels=gen_dim * 4, out_channels=gen_dim * 2, kernel_size=4, stride=2, padding=1,
+                               bias=False)
+        self.conv3 = nn.ConvTranspose2d(in_channels=gen_dim * 2, out_channels=gen_dim, kernel_size=4, stride=2, padding=1,
+                                        bias=False)
+        self.conv4 = nn.ConvTranspose2d(in_channels=gen_dim, out_channels=no_of_channels, kernel_size=5, stride=1, padding=0,
+                               bias=False)
+        self.batch_norm1 = nn.BatchNorm2d(gen_dim * 4)
+        self.batch_norm2 = nn.BatchNorm2d(gen_dim * 2)
+        self.batch_norm3 = nn.BatchNorm2d(gen_dim)
 
     def forward(self, input):
         '''
         forward pass of the generator:
         Input is a noise tensor and output is generated images resembling Training data.
         '''
-        output = self.network(input)
+        # output = self.network(input)
+        # x = torch.relu(self.batch_norm1(self.conv1(input)))
+        x = self.conv1(input)
+        x = self.batch_norm1(x)
+        x = torch.relu(x)
+        x = torch.relu(self.batch_norm2(self.conv2(x)))
+        x = torch.relu(self.batch_norm3(self.conv3(x)))
+        x = self.conv4(x)
+        output = torch.tanh(x)
+
         return output
 
 
 class Discriminator(nn.Module):
     def __init__(self, no_of_channels=1, disc_dim=32):
         super(Discriminator, self).__init__()
-        self.network = nn.Sequential(
-
-            nn.Conv2d(in_channels=no_of_channels, out_channels=disc_dim, kernel_size=4, stride=2, padding=1,
-                      bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-
-            nn.Conv2d(in_channels=disc_dim, out_channels=disc_dim * 2, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(disc_dim * 2),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Conv2d(in_channels=disc_dim * 2, out_channels=disc_dim * 4, kernel_size=3, stride=2, padding=1,
-                      bias=False),
-            nn.BatchNorm2d(disc_dim * 4),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Conv2d(in_channels=disc_dim * 4, out_channels=1,
-                      kernel_size=4, stride=1, padding=0, bias=False),
-            nn.Sigmoid()
-        )
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=2, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+        self.fc1 = nn.Linear(32 * 32 * 108, 128)  # Calculate the size based on input dimensions
+        self.fc2 = nn.Linear(128, 1)  # Output 1 for binary classification
 
     def forward(self, input):
         '''
@@ -160,8 +146,13 @@ class Discriminator(nn.Module):
         returns a 1-dimension tensor representing image as
         fake/real.
         '''
-        output = self.network(torch.unsqueeze(input, 1))  # TODO: change input parameters for new data (128, 1, 28, 28) -> (6, 128, 431) ?
-        return output.view(-1, 1).squeeze(1)
+        x = torch.unsqueeze(input, 1)
+        x = self.pool(torch.relu(self.conv1(x)))  # (batch_size, 16, 64, 216)
+        x = self.pool(torch.relu(self.conv2(x)))  # (batch_size, 32, 32, 108)
+        x = x.view(-1, 32 * 32 * 108)  # Flatten the tensor for fully connected layers
+        x = torch.relu(self.fc1(x))
+        x = torch.sigmoid(self.fc2(x))  # Sigmoid activation for binary classification
+        return x  # (batch_size, 1)
 
 
 class SimNN(nn.Module):
@@ -245,7 +236,7 @@ if __name__ == '__main__':
     # Load MNIST dataset as tensors
     batch_size = 32  # number of training samples in one iteration TODO: what is a good batch size
 
-    #dataloader = DataLoader(
+    # dataloader = DataLoader(
     #     datasets.MNIST('.', download=True, transform=my_transform),
     #     batch_size=batch_size,
     #     shuffle=True)
@@ -300,10 +291,10 @@ if __name__ == '__main__':
             fake_noise = get_noise(cur_batch_size, z_dim, device=device)
 
             # generate the fake images by passing the random noise to the generator
-            fake = gen(fake_noise)  # TODO: use the generator output for simulator
+            fake = gen(fake_noise)  # (6, 1 , 20, 20)
 
             # Get the discriminator's prediction on the fake images generated by generator
-            disc_fake_pred = disc(fake.detach()).reshape(-1)
+            disc_fake_pred = disc(fake.detach()).reshape(-1)  # TODO: use the generator output for simulator, as the shapes dont match anymore
             fake_label = (torch.ones(cur_batch_size) * 0.1).to(device)
 
             # calculate the discriminator's loss on fake images
