@@ -96,19 +96,23 @@ class MidiGenerator:
             self.future_events[array3]['service_time'] = 0
 
             #self.track.append(mido.Message('note_on', channel=0, note=self.note_offsets[array3], velocity=velocity,  time=midi_time)) # time needs to be changed to something else... maybe server processing time?
-            self.track.append(mido.Message('note_on', channel=0, note=int(array2)%127, velocity=velocity,  time=midi_time))
+            #self.track.append(mido.Message('note_on', channel=0, note=int(array2)%127, velocity=velocity,  time=midi_time))
 
         elif array4 == 'departure' and  ( int(array2) % 3 == 0 or int(array2) % 5 == 0 ):
 
-            #if array3 in self.future_events:
-                #self.track.append(mido.Message('note_on', channel=0, note=self.note_offsets[array3], velocity=self.future_events[array3]['velocity'], time=midi_time-self.future_events[array3]['time']))  # time needs to be changed to something else... maybe server processing time?
+            if array3 in self.future_events:
+                self.track.append(mido.Message('note_on', channel=0, note=self.note_offsets[array3], velocity=self.future_events[array3]['velocity'], time=midi_time-self.future_events[array3]['time']))  # time needs to be changed to something else... maybe server processing time?
+                
+                #self.track.append(mido.Message('note_off', channel=0, note=int(array2)%127, velocity=velocity, time=midi_time))  # time needs to be changed to something else... maybe server processing time?
+                self.track.append(mido.Message('note_off', channel=0, note=self.note_offsets[array3], velocity=self.future_events[array3]['velocity'], time=self.future_events[array3]['time']+self.future_events[array3]['service_time']*5))
+
+            else:
+                self.track.append(mido.Message('note_on', channel=0, note=self.note_offsets[array3], velocity=velocity, time=midi_time))
 
             if array3 in self.queue_lengths:
                 self.queue_lengths[array3] -= 1
             else:
                 self.queue_lengths[array3] = 0
-            self.track.append(mido.Message('note_off', channel=0, note=int(array2)%127, velocity=velocity, time=midi_time))  # time needs to be changed to something else... maybe server processing time?
-            #self.track.append(mido.Message('note_off', channel=0, note=self.note_offsets[array3], velocity=self.future_events[array3]['velocity'], time=self.future_events[array3]['time']+self.future_events[array3]['service_time']*2))
 
         elif array4 == 'processing' and  ( int(array2) % 3 == 0 or int(array2) % 5 == 0 ):
             self.future_events[array3]['service_time'] = midi_time
