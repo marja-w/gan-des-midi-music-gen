@@ -8,14 +8,22 @@ import random
 
 # create a class that handles processed_line tuples and generates a midi file based on the data
 class MidiGenerator:
-    def __init__(self, n):
+    def __init__(self, n, baseline=80, range=30, instruments=[]):
         self.n = n
+        self.baseline = baseline
+        self.range = range
         self.track = mido.MidiTrack()
         self.mid = mido.MidiFile()
 
         self.note_offsets = {}
 
         self.queue_lengths = {}
+
+        self.instruments = {}
+        for i,instrument in enumerate(instruments):
+            self.instruments[i] = instrument
+
+        self.future_events = {}
 
     def generate_midi(self):
         
@@ -60,24 +68,50 @@ class MidiGenerator:
         # time, event, server, arrival/departure
 
 
-        if array3 not in self.note_offsets:
-            self.note_offsets[array3] = random.randint(30, 127)
-   
-        if array4 == 'arrival' and int(array2) % 2 == 0:  # TEMP FIX (array2 % 2 == 0) - need to change this to something else... maybe server processing time?:
+        # calculate midi time based on value in array1
+        midi_time = int(float(array1))
 
+        velocity = int(array2) % 126
+
+
+        # change midi channel based on server for different instruments
+        if array3 not in self.instruments:
+            self.instruments[array3] = random.randint(0, 100)
+        self.track.append(mido.Message('program_change', program=self.instruments[array3], time=midi_time))
+
+        # change note offset based on server
+        if array3 not in self.note_offsets:
+            #self.note_offsets[array3] = random.randint(self.baseline+30, self.baseline+30)
+            self.note_offsets[array3] = random.randint(40, 126)
+   
+        if array4 == 'arrival' and  ( int(array2) % 3 == 0 or int(array2) % 5 == 0 ):
             if array3 in self.queue_lengths:
                 self.queue_lengths[array3] += 1
             else:
                 self.queue_lengths[array3] = 1
 
-            self.track.append(mido.Message('note_on', channel=0, note=self.note_offsets[array3], velocity=int(self.queue_lengths[array3])%127,  time=int(math.floor(float(array1))))) # time needs to be changed to something else... maybe server processing time?
-        elif array4 == 'departure' and int(array2) % 2 == 0:  # TEMP FIX (array2 % 2 == 0) - need to change this to something else... maybe server processing time?::
+            self.future_events[array3] = {}
+            self.future_events[array3]['time'] = midi_time
+            self.future_events[array3]['velocity'] = velocity
+            self.future_events[array3]['service_time'] = 0
+
+            #self.track.append(mido.Message('note_on', channel=0, note=self.note_offsets[array3], velocity=velocity,  time=midi_time)) # time needs to be changed to something else... maybe server processing time?
+            self.track.append(mido.Message('note_on', channel=0, note=int(array2)%127, velocity=velocity,  time=midi_time))
+
+        elif array4 == 'departure' and  ( int(array2) % 3 == 0 or int(array2) % 5 == 0 ):
+
+            #if array3 in self.future_events:
+                #self.track.append(mido.Message('note_on', channel=0, note=self.note_offsets[array3], velocity=self.future_events[array3]['velocity'], time=midi_time-self.future_events[array3]['time']))  # time needs to be changed to something else... maybe server processing time?
+
             if array3 in self.queue_lengths:
                 self.queue_lengths[array3] -= 1
             else:
                 self.queue_lengths[array3] = 0
-            self.track.append(mido.Message('note_off', channel=0, note=self.note_offsets[array3], velocity=int(self.queue_lengths[array3]%127), time=int(math.ceil(float(array1)))))  # time needs to be changed to something else... maybe server processing time?
+            self.track.append(mido.Message('note_off', channel=0, note=int(array2)%127, velocity=velocity, time=midi_time))  # time needs to be changed to something else... maybe server processing time?
+            #self.track.append(mido.Message('note_off', channel=0, note=self.note_offsets[array3], velocity=self.future_events[array3]['velocity'], time=self.future_events[array3]['time']+self.future_events[array3]['service_time']*2))
 
+        elif array4 == 'processing' and  ( int(array2) % 3 == 0 or int(array2) % 5 == 0 ):
+            self.future_events[array3]['service_time'] = midi_time
 
     def save_midi(self):
         # add the end of track message
@@ -102,16 +136,16 @@ class LogLineProcessor:
         else:
             return None
 
+import numpy as np
 
-
-def process_adjsim_log():
+def process_adjsim_log(n=2000, baseline=70, range=50, instruments=np.arange(0,16)):
     # Example usage:
     log_processor = LogLineProcessor(r"INFO:root:([0-9]*\.[0-9]+|[0-9]+) - ([0-9]*\.[0-9]+|[0-9]+) - ([0-9]*\.[0-9]+|[0-9]+) - (arrival|departure)")
 
     count = 0
     max = 2000
 
-    midi_generator = MidiGenerator(n=max)
+    midi_generator = MidiGenerator(n=max, baseline=baseline, range=range, instruments=instruments)
 
 
     # Read the log file line by line
@@ -120,11 +154,8 @@ def process_adjsim_log():
             count += 1
             if count > max:
                 break
-            #print(line.strip())
-            #print(type(line))
             processed_line = log_processor.process_line(line)
             if processed_line:
-                #print(processed_line)
                 midi_generator.process_line(processed_line)
 
 

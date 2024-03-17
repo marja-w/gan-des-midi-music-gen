@@ -569,6 +569,11 @@ class Sim:
             if server.distribution is not None and server.is_branch() == False:
                 while service_time <= 0:
                     service_time = server.distribution.rvs(random_state=server.rng)
+
+            if self.generate_log:
+                if self.logging_mode == 'Music':
+                    logging.info(f"{service_time} - {event_id} - {server_id} - processing")
+                    
             server.total_time_in_service += service_time
             departure = Event(self.departure, self.Clock + service_time, server_id=server_id, source_id=None, event_id=event_id)
             self.FutureEventList.enqueue(departure)
