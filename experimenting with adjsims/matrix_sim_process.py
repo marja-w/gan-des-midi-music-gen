@@ -18,7 +18,7 @@ def matrix_to_wav(matrices=[None]*8, size=28, use_same_instrument=None):
     num_aug = 5
     spectrograms = np.zeros((len(matrices), 128, 216))
     for index, matrix in enumerate(matrices):
-        if not matrix:
+        if not matrix:  # TODO: throws RuntimeError: Boolean value of Tensor with more than one value is ambiguous
             matrix = np.random.rand(size,size)
             # zero out ends of each row
             matrix[size-num_aug:,:] = 0
