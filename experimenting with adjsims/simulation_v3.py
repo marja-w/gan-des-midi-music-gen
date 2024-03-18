@@ -724,14 +724,14 @@ class Sim:
         if self.total_customers == 0:
             return 0, 0, 0, [0] * len(self.servers)
         
-        avg_time_at_server = {server : (self.servers[server].total_time_in_service + self.servers[server].total_time_in_queue) / self.servers[server].total_customers_served for server in self.servers}
-        avg_queue_time = {server : self.servers[server].total_time_in_queue / self.servers[server].total_customers_served for server in self.servers}
+        avg_time_at_server = {server : (self.servers[server].total_time_in_service + self.servers[server].total_time_in_queue) / self.servers[server].total_customers_served for server in self.servers if self.servers[server].total_customers_served > 0}
+        avg_queue_time = {server : self.servers[server].total_time_in_queue / self.servers[server].total_customers_served for server in self.servers if self.servers[server].total_customers_served > 0}
         
         server_utilizations = {server : self.servers[server].total_time_in_service / self.Clock for server in self.servers}
         max_queue_lengths = {server : self.servers[server].max_queue_length for server in self.servers}
-        renege_rate = {server : self.servers[server].reneges / self.servers[server].total_customers_served for server in self.servers}
+        renege_rate = {server : self.servers[server].reneges / self.servers[server].total_customers_served for server in self.servers if self.servers[server].total_customers_served > 0}
 
-        service_times = {server : self.servers[server].total_time_in_service / self.servers[server].total_customers_served for server in self.servers}
+        service_times = {server : self.servers[server].total_time_in_service / self.servers[server].total_customers_served for server in self.servers if self.servers[server].total_customers_served > 0}
         arrival_times = {source : self.sources[source].arrival_times / self.sources[source].customers_generated for source in self.sources}
 
         customers_served_per_server = {server : self.servers[server].total_customers_served for server in self.servers}
