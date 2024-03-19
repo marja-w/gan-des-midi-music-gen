@@ -3,22 +3,49 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import librosa
+import time
 
 from sim_log_process_music import process_adjsim_log
 from simulation_v3 import Sim
 
 
-def get_melspectrogram_db(file_path, sr=44100, n_fft=2048, hop_length=512, n_mels=128, fmin=20, fmax=8300, top_db=80):
+def get_melspectrogram_db_librosa(file_path, sr=44100, n_fft=2048, hop_length=512, n_mels=128, fmin=20, fmax=8300, top_db=80):
     y, sr = librosa.load(file_path, sr=sr, mono=True)
     mel = librosa.feature.melspectrogram(y=y, sr=sr, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels, fmin=fmin, fmax=fmax)
     mel = librosa.power_to_db(mel, ref=np.max)
     return mel
 
-def matrix_to_wav(matrices=[None]*8, size=28, use_same_instrument=None):
+import torchaudio
+import torchaudio.transforms as T
+
+def get_melspectrogram_db(file_path, sr=44100, n_fft=2048, hop_length=512, n_mels=128, fmin=20, fmax=8300, top_db=80):
+    waveform, sample_rate = torchaudio.load(file_path, normalize=True)
+    waveform = waveform.mean(dim=0).unsqueeze(0)
+
+    mel_spectrogram_transform = T.MelSpectrogram(
+        sample_rate=sr,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        n_mels=n_mels,
+        f_min=fmin,
+        f_max=fmax
+    )
+
+    mel_spectrogram = mel_spectrogram_transform(waveform)
+
+    # Convert to dB scale
+    db_transform = T.AmplitudeToDB(top_db=top_db)
+    mel_spectrogram_db = db_transform(mel_spectrogram)
+
+    return mel_spectrogram_db
+
+
+
+def matrix_to_wav(matrices=[None], size=28, use_same_instrument=None):
     num_aug = 5
-    spectrograms = np.zeros((len(matrices), 128, 216))
+    spectrograms = []
     for index, matrix in enumerate(matrices):
-        if not matrix:  # TODO: throws RuntimeError: Boolean value of Tensor with more than one value is ambiguous
+        if matrix != None:  # TODO: throws RuntimeError: Boolean value of Tensor with more than one value is ambiguous
             matrix = np.random.rand(size,size)
             # zero out ends of each row
             matrix[size-num_aug:,:] = 0
@@ -41,7 +68,7 @@ def matrix_to_wav(matrices=[None]*8, size=28, use_same_instrument=None):
         # select instruments for each server based on the values in 24th row where the values are between 0 and 1 and the instrument is selected based on the value up to 128
         if use_same_instrument == None:
             for i in range(size-num_aug):
-                instruments[i] = int(matrix[size-num_aug+1,i] * 127)
+                instruments[i] = int(matrix[size-num_aug+1,i] * 126)
         else:
             instruments = np.array([use_same_instrument]*(size-num_aug))
         #print("Instruments:", instruments)
@@ -50,7 +77,7 @@ def matrix_to_wav(matrices=[None]*8, size=28, use_same_instrument=None):
         # create a note level for each server based on the values in the 27th row where the values are between 0 and 1 and the note level is selected based on the value up to 127
         note_levels = np.zeros(size-num_aug)
         for i in range(size-num_aug):
-            note_levels[i] = int(matrix[size-num_aug+2,i] * 127) 
+            note_levels[i] = int(matrix[size-num_aug+2,i] * 126) 
         #print("Note levels:", note_levels)
         #print("len(note_levels):", len(note_levels))
 
@@ -82,18 +109,18 @@ def matrix_to_wav(matrices=[None]*8, size=28, use_same_instrument=None):
 
         queue_list = [127] * size
         length_mel = 0
-        while length_mel < 216:
+        while length_mel < 2:
             np.random.seed(np.random.randint(0, 99999, size=1))
             seeds = np.random.randint(0, 99999, size=1)
             sim_matrix = matrix[:size-num_aug, :size-num_aug]
-            sim = Sim(sim_matrix, distributions, queue_list, seeds=seeds, generate_log=True, animation=False, record_history=False, logging_mode='Music')
-            sim.run(number_of_customers=2000)
+            sim = Sim(sim_matrix, distributions, queue_list, seeds=seeds, log_path="./experimenting with adjsims/logs/", generate_log=True, animation=False, record_history=False, logging_mode='Music')
+            sim.run(number_of_customers=10000)
 
             file_path = process_adjsim_log(instruments=instruments, note_levels=note_levels)
 
-            fs = FluidSynth(sound_font='FluidR3_GM.sf2', sample_rate=44100)
+            fs = FluidSynth(sound_font='./experimenting with adjsims/FluidR3_GM.sf2', sample_rate=44100)
 
-            output_file = 'adj_sim_outputs\wav\output_'+ str(index) + '.wav'
+            output_file = './experimenting with adjsims/adj_sim_outputs/wav/output_'+ str(index) + '.wav'
 
             # check if the file path exists, if not, create the file
             if not os.path.exists(output_file):
@@ -111,7 +138,7 @@ def matrix_to_wav(matrices=[None]*8, size=28, use_same_instrument=None):
             mel = get_melspectrogram_db(file_path=output_file)
             length_mel = mel.shape[1]
 
-        spectrograms[index] = mel[:128, :216]
+        spectrograms.append(mel)
 
     # return numpy array for first 5 seconds of each spectrogram
     return spectrograms

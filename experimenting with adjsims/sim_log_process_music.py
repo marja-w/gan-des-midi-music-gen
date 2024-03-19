@@ -114,12 +114,12 @@ class MidiGenerator:
             if array3 in self.future_events:
                 # change the instrument to the instrument of the server
                 on_time = max(0, int(self.future_events[array3]['time']))
-                self.track.append(mido.Message('program_change', program=self.instruments[array3], time=on_time))
+                #self.track.append(mido.Message('program_change', program=self.instruments[array3], time=on_time))
                 self.track.append(mido.Message('note_on', channel=0, note=self.note_offsets[array3], velocity=int(self.future_events[array3]['velocity']),  time=on_time))
 
                 # change the instrument to the instrument of the server
                 off_time = max(0,int(self.future_events[array3]['time'] + (midi_time-self.future_events[array3]['time']) + max(0,self.future_events[array3]['service_time']))) 
-                self.track.append(mido.Message('program_change', program=self.instruments[array3], time=off_time))
+                #self.track.append(mido.Message('program_change', program=self.instruments[array3], time=off_time))
                 self.track.append(mido.Message('note_off', channel=0, note=self.note_offsets[array3], velocity=self.future_events[array3]['velocity'],  time=off_time))
 
 
@@ -167,7 +167,7 @@ def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16
 
 
     # Read the log file line by line
-    with open('logs/simulation.log', 'r') as f:
+    with open("./experimenting with adjsims/logs/simulation.log", 'r') as f:
         for line in f:
             count += 1
             if count > max:
@@ -176,7 +176,7 @@ def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16
             if processed_line:
                 midi_generator.process_line(processed_line)
 
-    filepath = 'adj_sim_outputs\midi\output.mid' # need to change this if we want to keep the original midi files, not necessary for now
+    filepath = './experimenting with adjsims/adj_sim_outputs/midi/output.mid' # need to change this if we want to keep the original midi files, not necessary for now
 
     # save the output midi to /adj_sim_output/midi/output.mid
     midi_generator.save_midi(filename=filepath) 

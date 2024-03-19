@@ -20,6 +20,8 @@ import math
 import time
 import logging
 
+import os
+
 class FlowBranchOperator:
     def __init__(self, probabilities, children=None, origin=None):
         """
@@ -315,8 +317,9 @@ class Sim:
                 filename = log_path + "simulation.log"
             else:
                 filename = log_path + log_name
-            # delete old log file
-            open(filename, 'w').close()
+            if os.path.exists(filename):
+                # delete old log file
+                open(filename, 'w').close()
             # create logger
             logging.basicConfig(filename=filename, filemode='w', level=logging.INFO)
         

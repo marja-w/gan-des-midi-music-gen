@@ -11,7 +11,14 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 
-from util import get_melspectrogram_db
+#from util import get_melspectrogram_db
+import scipy.io.wavfile as wav
+import librosa
+def get_melspectrogram_db(file_path, sr=44100, n_fft=2048, hop_length=512, n_mels=128, fmin=20, fmax=8300, top_db=80):
+    y, sr = librosa.load(file_path, sr=sr, mono=True)
+    mel = librosa.feature.melspectrogram(y=y, sr=sr, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels, fmin=fmin, fmax=fmax)
+    mel = librosa.power_to_db(mel, ref=np.max)
+    return mel
 
 from matrix_sim_process import matrix_to_wav
 
@@ -51,14 +58,18 @@ def weights_init(m):
 class InputSong(Dataset):
     def __init__(self, audio_file, n_fft=2048, hop_length=512, n_mels=128, window_size=5,
                  hop_length_audio=5):
-        self.audio_file = audio_file
+        self.srate, self.audio_file = wav.read("S:\\Sadie\\2024\\475\\Project\\song-extender\\experimenting with adjsims\\data\\classical.00000.wav")
 
+        audio = self.audio_file.astype(np.float32) / 32767.0
+        audio = (0.9 / max(audio)) * audio
         # get audio parameters
-        waveform, sample_rate = torchaudio.load(self.audio_file)
+        waveform, sample_rate = torchaudio.load("S:\\Sadie\\2024\\475\\Project\\song-extender\\experimenting with adjsims\\data\\classical.00000.wav")
         self.orig_waveform = waveform
         self.sample_rate = sample_rate
-        self.audio_file_length = len(waveform[1]) / self.sample_rate
 
+        #self.audio_file_length = len(waveform[1]) / self.sample_rate
+        self.audio_file_length = waveform.size(dim=1) / sample_rate
+        
         # spectrogram parameters
         self.n_fft = n_fft
         self.hop_length = hop_length
@@ -91,7 +102,36 @@ class InputSong(Dataset):
 
         # Convert to decibels
         spectrogram = torchaudio.transforms.AmplitudeToDB()(spectrogram)
-        return spectrogram
+
+        #return spectrogram
+        return get_melspectrogram_db(self.audio_files[item], sr=self.sample_rate, n_fft=self.n_fft, hop_length=self.hop_length, n_mels=self.n_mels)
+
+
+import torchaudio
+import torchaudio.transforms as T
+
+def get_melspectrogram_db(waveform, sr=44100, n_fft=2048, hop_length=512, n_mels=128, fmin=20, fmax=8300, top_db=80):
+    #waveform, sample_rate = torchaudio.load(file_path, normalize=True)
+    #waveform = waveform.mean(dim=0).unsqueeze(0)
+
+    mel_spectrogram_transform = T.MelSpectrogram(
+        sample_rate=sr,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        n_mels=n_mels,
+        f_min=fmin,
+        f_max=fmax
+    )
+
+    mel_spectrogram = mel_spectrogram_transform(waveform)
+
+    # Convert to dB scale
+    db_transform = T.AmplitudeToDB(top_db=top_db)
+    mel_spectrogram_db = db_transform(mel_spectrogram)
+
+    return mel_spectrogram_db
+
+
 
 
 class Generator(nn.Module):
@@ -138,7 +178,8 @@ class Discriminator(nn.Module):
         self.conv1 = nn.Conv2d(1, 16, kernel_size=2, stride=1, padding=1)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
-        self.fc1 = nn.Linear(32 * 32 * 108, 128)  # Calculate the size based on input dimensions
+        #self.fc1 = nn.Linear(32 * 32 * 108, 128)  # Calculate the size based on input dimensions
+        self.fc1 = nn.Linear(7* 32 * 32 * 54, 128)  # Calculate the size based on input dimensions
         self.fc2 = nn.Linear(128, 1)  # Output 1 for binary classification
 
     def forward(self, input):
@@ -151,7 +192,7 @@ class Discriminator(nn.Module):
         x = torch.unsqueeze(input, 1)
         x = self.pool(torch.relu(self.conv1(x)))  # (batch_size, 16, 64, 216)
         x = self.pool(torch.relu(self.conv2(x)))  # (batch_size, 32, 32, 108)
-        x = x.view(-1, 32 * 32 * 108)  # Flatten the tensor for fully connected layers
+        x = x.view(-1, 7* 32 * 32 * 54)  # Flatten the tensor for fully connected layers
         x = torch.relu(self.fc1(x))
         x = torch.sigmoid(self.fc2(x))  # Sigmoid activation for binary classification
         return x  # (batch_size, 1)
@@ -283,7 +324,8 @@ if __name__ == '__main__':
             # train discriminator on batch of real images from the training dataset
             disc_opt.zero_grad()
             disc_real_pred = disc(real).reshape(-1)
-            real_label = (torch.ones(cur_batch_size) * 0.9).to(device)
+            #real_label = (torch.ones(cur_batch_size) * 0.9).to(device)
+            real_label = torch.ones(disc_real_pred.shape, device=device)
 
             # Get the discriminator's prediction on the real image and
             # calculate the discriminator's loss on real images
