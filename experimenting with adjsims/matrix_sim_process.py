@@ -114,7 +114,7 @@ def matrix_to_wav(matrices=[None], size=28, use_same_instrument=None):
             seeds = np.random.randint(0, 99999, size=1)
             sim_matrix = matrix[:size-num_aug, :size-num_aug]
             sim = Sim(sim_matrix, distributions, queue_list, seeds=seeds, log_path="./experimenting with adjsims/logs/", generate_log=True, animation=False, record_history=False, logging_mode='Music')
-            sim.run(number_of_customers=10000)
+            sim.run(number_of_customers=2000)
 
             file_path = process_adjsim_log(instruments=instruments, note_levels=note_levels)
 
