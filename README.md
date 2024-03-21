@@ -36,4 +36,9 @@ TODO
 - Marja updated the output dimensions of GAN networks
 - Sadie implemented midi to audio file converter and made changes to simulator
 - Marja: randomly slice the input audio for more input clips of 5 seconds, requirements.txt
-- Sadie: connect simulator to GAN 
+- Sadie: connect simulator to GAN
+
+## 23rd March
+
+- [ ] review feedback on project description: should we do a beat tracker evaluation, to have data, and see GAN training as extension?
+- [ ] fix spectrogram dimensions of fake data: right now the fake data is too short, it should be 5*44100=220,500 samples long, but has dimensions (2, 88576)
