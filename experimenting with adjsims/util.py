@@ -36,9 +36,6 @@ def get_melspectrogram_db_from_file(file_path, sr=44100, n_fft=2048, hop_length=
 
 def get_melspectrogram_db_tensor(waveform, sr=44100, n_fft=2048, hop_length=512, n_mels=128, fmin=20, fmax=8300,
                                  top_db=80):
-    # waveform, sample_rate = torchaudio.load(file_path, normalize=True)
-    # waveform = waveform.mean(dim=0).unsqueeze(0)
-
     mel_spectrogram_transform = T.MelSpectrogram(
         sample_rate=sr,
         n_fft=n_fft,
@@ -54,4 +51,10 @@ def get_melspectrogram_db_tensor(waveform, sr=44100, n_fft=2048, hop_length=512,
     db_transform = T.AmplitudeToDB(top_db=top_db)
     mel_spectrogram_db = db_transform(mel_spectrogram)
 
+    return mel_spectrogram_db
+
+def get_melspectrogram_db_tensor_from_file(file_path):
+    waveform, sample_rate = torchaudio.load(file_path, normalize=True)  # [(2, 88576), 44100]
+    # waveform = waveform.mean(dim=0).unsqueeze(0)
+    mel_spectrogram_db = get_melspectrogram_db_tensor(waveform, sample_rate)
     return mel_spectrogram_db
