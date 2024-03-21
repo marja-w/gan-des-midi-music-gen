@@ -11,15 +11,8 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 
-#from util import get_melspectrogram_db
+from util import get_melspectrogram_db_from_file, get_melspectrogram_db_tensor
 import scipy.io.wavfile as wav
-import librosa
-def get_melspectrogram_db(file_path, sr=44100, n_fft=2048, hop_length=512, n_mels=128, fmin=20, fmax=8300, top_db=80):
-    y, sr = librosa.load(file_path, sr=sr, mono=True)
-    mel = librosa.feature.melspectrogram(y=y, sr=sr, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels, fmin=fmin, fmax=fmax)
-    mel = librosa.power_to_db(mel, ref=np.max)
-    return mel
-
 from matrix_sim_process import matrix_to_wav
 
 
@@ -55,21 +48,21 @@ def weights_init(m):
         torch.nn.init.constant_(m.bias, val=0)
 
 
-class InputSong(Dataset):
+class InputSong(Dataset):  # TODO: create dataset to get song data from one genre folder
     def __init__(self, audio_file, n_fft=2048, hop_length=512, n_mels=128, window_size=5,
                  hop_length_audio=5):
-        self.srate, self.audio_file = wav.read("S:\\Sadie\\2024\\475\\Project\\song-extender\\experimenting with adjsims\\data\\classical.00000.wav")
+        self.srate, self.audio_file = wav.read("data/classical.00000.wav")
 
         audio = self.audio_file.astype(np.float32) / 32767.0
         audio = (0.9 / max(audio)) * audio
         # get audio parameters
-        waveform, sample_rate = torchaudio.load("S:\\Sadie\\2024\\475\\Project\\song-extender\\experimenting with adjsims\\data\\classical.00000.wav")
+        waveform, sample_rate = torchaudio.load("data/classical.00000.wav")
         self.orig_waveform = waveform
         self.sample_rate = sample_rate
 
-        #self.audio_file_length = len(waveform[1]) / self.sample_rate
+        # self.audio_file_length = len(waveform[1]) / self.sample_rate
         self.audio_file_length = waveform.size(dim=1) / sample_rate
-        
+
         # spectrogram parameters
         self.n_fft = n_fft
         self.hop_length = hop_length
@@ -93,45 +86,9 @@ class InputSong(Dataset):
     def __getitem__(self, item):
         wav = self.audio_files[item]
         # Compute spectrogram
-        spectrogram = torchaudio.transforms.MelSpectrogram(
-            sample_rate=self.sample_rate,
-            n_fft=self.n_fft,
-            hop_length=self.hop_length,
-            n_mels=self.n_mels
-        )(wav)
-
-        # Convert to decibels
-        spectrogram = torchaudio.transforms.AmplitudeToDB()(spectrogram)
-
-        #return spectrogram
-        return get_melspectrogram_db(self.audio_files[item], sr=self.sample_rate, n_fft=self.n_fft, hop_length=self.hop_length, n_mels=self.n_mels)
-
-
-import torchaudio
-import torchaudio.transforms as T
-
-def get_melspectrogram_db(waveform, sr=44100, n_fft=2048, hop_length=512, n_mels=128, fmin=20, fmax=8300, top_db=80):
-    #waveform, sample_rate = torchaudio.load(file_path, normalize=True)
-    #waveform = waveform.mean(dim=0).unsqueeze(0)
-
-    mel_spectrogram_transform = T.MelSpectrogram(
-        sample_rate=sr,
-        n_fft=n_fft,
-        hop_length=hop_length,
-        n_mels=n_mels,
-        f_min=fmin,
-        f_max=fmax
-    )
-
-    mel_spectrogram = mel_spectrogram_transform(waveform)
-
-    # Convert to dB scale
-    db_transform = T.AmplitudeToDB(top_db=top_db)
-    mel_spectrogram_db = db_transform(mel_spectrogram)
-
-    return mel_spectrogram_db
-
-
+        spectrogram = get_melspectrogram_db_tensor(wav, self.sample_rate, self.n_fft, self.hop_length, self.n_mels)
+        return spectrogram
+        # return get_melspectrogram_db(self.audio_files[item], sr=self.sample_rate, n_fft=self.n_fft, hop_length=self.hop_length, n_mels=self.n_mels)
 
 
 class Generator(nn.Module):
@@ -142,14 +99,18 @@ class Generator(nn.Module):
 
     def __init__(self, no_of_channels=1, noise_dim=100, gen_dim=32):
         super(Generator, self).__init__()
-        self.conv1 = nn.ConvTranspose2d(in_channels=noise_dim, out_channels=gen_dim * 4, kernel_size=4, stride=1, padding=0,
-                               bias=False)
-        self.conv2 = nn.ConvTranspose2d(in_channels=gen_dim * 4, out_channels=gen_dim * 2, kernel_size=4, stride=2, padding=1,
-                               bias=False)
-        self.conv3 = nn.ConvTranspose2d(in_channels=gen_dim * 2, out_channels=gen_dim, kernel_size=4, stride=2, padding=1,
+        self.conv1 = nn.ConvTranspose2d(in_channels=noise_dim, out_channels=gen_dim * 4, kernel_size=4, stride=1,
+                                        padding=0,
                                         bias=False)
-        self.conv4 = nn.ConvTranspose2d(in_channels=gen_dim, out_channels=no_of_channels, kernel_size=5, stride=1, padding=0,
-                               bias=False)
+        self.conv2 = nn.ConvTranspose2d(in_channels=gen_dim * 4, out_channels=gen_dim * 2, kernel_size=4, stride=2,
+                                        padding=1,
+                                        bias=False)
+        self.conv3 = nn.ConvTranspose2d(in_channels=gen_dim * 2, out_channels=gen_dim, kernel_size=4, stride=2,
+                                        padding=1,
+                                        bias=False)
+        self.conv4 = nn.ConvTranspose2d(in_channels=gen_dim, out_channels=no_of_channels, kernel_size=5, stride=1,
+                                        padding=0,
+                                        bias=False)
         self.batch_norm1 = nn.BatchNorm2d(gen_dim * 4)
         self.batch_norm2 = nn.BatchNorm2d(gen_dim * 2)
         self.batch_norm3 = nn.BatchNorm2d(gen_dim)
@@ -285,7 +246,7 @@ if __name__ == '__main__':
     #     batch_size=batch_size,
     #     shuffle=True)
 
-    input_song = InputSong(audio_file="./data/test.mp3")
+    input_song = InputSong(audio_file="./data/classical.00000.wav")
     dataloader = DataLoader(input_song, batch_size=batch_size, shuffle=True)
 
     # START
