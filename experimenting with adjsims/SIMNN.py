@@ -49,26 +49,21 @@ def weights_init(m):
 
 
 class InputSong(Dataset):  # TODO: create dataset to get song data from one genre folder
-    def __init__(self, audio_file, n_fft=2048, hop_length=512, n_mels=128, window_size=5,
-                 hop_length_audio=5):
-        self.srate, self.audio_file = wav.read("data/classical.00000.wav")
+    def __init__(self, audio_file, window_size=5, hop_length_audio=5):  # TODO: write function in utils for cutting audio
+        # self.srate, audio = wav.read(audio_file)
+        #
+        # audio = audio.astype(np.float32) / 32767.0
+        # self.audio = (0.9 / max(audio)) * audio
 
-        audio = self.audio_file.astype(np.float32) / 32767.0
-        audio = (0.9 / max(audio)) * audio
         # get audio parameters
-        waveform, sample_rate = torchaudio.load("data/classical.00000.wav")
+        waveform, sample_rate = torchaudio.load(audio_file, normalize=True)
         self.orig_waveform = waveform
         self.sample_rate = sample_rate
 
         # self.audio_file_length = len(waveform[1]) / self.sample_rate
         self.audio_file_length = waveform.size(dim=1) / sample_rate
 
-        # spectrogram parameters
-        self.n_fft = n_fft
-        self.hop_length = hop_length
-        self.n_mels = n_mels
-
-        # split audio
+        # split audio TODO: put in utils
         self.window_size = window_size  # length in seconds
         self.hop_length_audio = hop_length_audio  # window stride in seconds
         self.audio_files = list()
@@ -86,8 +81,8 @@ class InputSong(Dataset):  # TODO: create dataset to get song data from one genr
     def __getitem__(self, item):
         wav = self.audio_files[item]
         # Compute spectrogram
-        spectrogram = get_melspectrogram_db_tensor(wav, self.sample_rate, self.n_fft, self.hop_length, self.n_mels)
-        return spectrogram
+        spectrogram = get_melspectrogram_db_tensor(wav, self.sample_rate)  # [(110250,), 22050]
+        return spectrogram  # (128, 216)
         # return get_melspectrogram_db(self.audio_files[item], sr=self.sample_rate, n_fft=self.n_fft, hop_length=self.hop_length, n_mels=self.n_mels)
 
 
@@ -134,13 +129,16 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
+    """
+    Takes as input a tensor of dimensions (batch_size, 128, 216) and returns probabilities for each element in the
+    batch, resulting in a tensor of size (batch_size, 1)
+    """
     def __init__(self, no_of_channels=1, disc_dim=32):
         super(Discriminator, self).__init__()
         self.conv1 = nn.Conv2d(1, 16, kernel_size=2, stride=1, padding=1)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
-        #self.fc1 = nn.Linear(32 * 32 * 108, 128)  # Calculate the size based on input dimensions
-        self.fc1 = nn.Linear(7* 32 * 32 * 54, 128)  # Calculate the size based on input dimensions
+        self.fc1 = nn.Linear(32 * 32 * 54, 128)  # Calculate the size based on input dimensions
         self.fc2 = nn.Linear(128, 1)  # Output 1 for binary classification
 
     def forward(self, input):
@@ -150,10 +148,10 @@ class Discriminator(nn.Module):
         returns a 1-dimension tensor representing image as
         fake/real.
         '''
-        x = torch.unsqueeze(input, 1)
-        x = self.pool(torch.relu(self.conv1(x)))  # (batch_size, 16, 64, 216)
-        x = self.pool(torch.relu(self.conv2(x)))  # (batch_size, 32, 32, 108)
-        x = x.view(-1, 7* 32 * 32 * 54)  # Flatten the tensor for fully connected layers
+        x = torch.unsqueeze(input, 1)  # (batch_size, 1, 128, 216)
+        x = self.pool(torch.relu(self.conv1(x)))  # (batch_size, 16, 64, 108)
+        x = self.pool(torch.relu(self.conv2(x)))  # (batch_size, 32, 32, 54)
+        x = x.view(-1, 32 * 32 * 54)  # Flatten the tensor for fully connected layers
         x = torch.relu(self.fc1(x))
         x = torch.sigmoid(self.fc2(x))  # Sigmoid activation for binary classification
         return x  # (batch_size, 1)
@@ -285,8 +283,8 @@ if __name__ == '__main__':
             # train discriminator on batch of real images from the training dataset
             disc_opt.zero_grad()
             disc_real_pred = disc(real).reshape(-1)
-            #real_label = (torch.ones(cur_batch_size) * 0.9).to(device)
-            real_label = torch.ones(disc_real_pred.shape, device=device)
+            real_label = (torch.ones(cur_batch_size) * 0.9).to(device)
+            # real_label = torch.ones(disc_real_pred.shape, device=device)
 
             # Get the discriminator's prediction on the real image and
             # calculate the discriminator's loss on real images
@@ -297,11 +295,12 @@ if __name__ == '__main__':
             fake_noise = get_noise(cur_batch_size, z_dim, device=device)
 
             # generate the fake images by passing the random noise to the generator
-            fake = gen(fake_noise)  # matrix of size (6, 1 , 20, 20)
+            fake = gen(fake_noise)  # matrix of size (batch_size, 1 , 20, 20)
             fake = matrix_to_wav(fake)  # build simulator from matrix and get spectrograms from created audio
-
+            # TODO: transform list of length batch_size with (128, 174) shaped matrices to tensor (batch_size, 128, 174)
             # Get the discriminator's prediction on the fake images generated by generator
-            disc_fake_pred = disc(fake.detach()).reshape(-1)  # TODO: use the generator output for simulator, as the shapes dont match anymore
+            disc_fake_pred = disc(fake.detach()).reshape(
+                -1)  # TODO: use the generator output for simulator, as the shapes dont match anymore
             fake_label = (torch.ones(cur_batch_size) * 0.1).to(device)
 
             # calculate the discriminator's loss on fake images
