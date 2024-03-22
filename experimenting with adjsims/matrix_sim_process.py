@@ -5,33 +5,26 @@ import matplotlib.pyplot as plt
 import librosa
 import time
 
+import torch
+
 from sim_log_process_music import process_adjsim_log
 from simulation_v3 import Sim
 
 from util import get_melspectrogram_db_tensor_from_file
+from util import get_melspectrogram_db
 
 
-def matrix_to_wav(matrices=[None], size=20, use_same_instrument=None):
+def matrix_to_wav(matrices, size=20, use_same_instrument=None, start=0, end=174, device='cpu'):
     num_aug = 5
     spectrograms = []
+
     for index, matrix in enumerate(matrices):
-        if matrix == None:
-            matrix = np.random.rand(size, size)
-            # zero out ends of each row
-            matrix[size - num_aug:, :] = 0
-            matrix[:, size - num_aug:] = 0
 
-            # for the last 4 rows up to the 24th column, randomly set the values between 0 and 1
-            matrix[size - num_aug, :size - num_aug] = np.random.rand(size - num_aug)
-            matrix[size - num_aug + 1, :size - num_aug] = np.random.rand(size - num_aug)
-            matrix[size - num_aug + 2, :size - num_aug] = np.random.rand(size - num_aug)
-            matrix[size - num_aug + 3, :size - num_aug] = np.random.rand(size - num_aug)
-            matrix[size - num_aug + 4, :size - num_aug] = np.random.rand(size - num_aug)
+        matrix = np.abs(matrix)
 
-        matrix = matrix.squeeze().detach().numpy()  # remove channel dimension
         # select source and sink nodes based on the values in the 23rd row where the values are between 0 and 1
         sources = np.where(matrix[size - num_aug] > 0.75)
-        if len(sources) == 0:
+        if len(sources[0]) == 0:
             sources = np.random.choice(size - num_aug, size=size // 8, replace=False)
 
         instruments = np.zeros(size - num_aug)
@@ -50,11 +43,15 @@ def matrix_to_wav(matrices=[None], size=20, use_same_instrument=None):
             # print("Note levels:", note_levels)
         # print("len(note_levels):", len(note_levels))
 
+        # normalize size-num_aug+3 and size-num_aug+4 rows
+        matrix[size - num_aug + 3] = matrix[size - num_aug + 3] / sum(matrix[size - num_aug + 3])
+        matrix[size - num_aug + 4] = matrix[size - num_aug + 4] / sum(matrix[size - num_aug + 4])
+
         # create a normal distribution for each server based on the values in the 25th and 26th rows where the values are between 0 and 1
         distributions = []
         for i in range(size - num_aug):
             # distributions.append(['exponential', 1+matrix[size-num_aug+2,i]])
-            if i in sources[0]:
+            if i in sources:
                 distributions.append(['normal', 30 * matrix[size - num_aug + 3, i], 15 * matrix[size - num_aug + 4, i]])
             else:
                 distributions.append(['normal', 5 * matrix[size - num_aug + 3, i], 3 * matrix[size - num_aug + 4, i]])
@@ -64,27 +61,34 @@ def matrix_to_wav(matrices=[None], size=20, use_same_instrument=None):
             matrix[:, i] = 0
             matrix[i, i] = 0
 
-        for i in [x for x in np.arange(0, size) if x not in sources[0]]:
+        for i in [x for x in np.arange(0, size) if x not in sources]:
             matrix[i][i] = 0
 
+        epsilon = 0.0001
         for i in range(size - num_aug):
-            matrix[i] = matrix[i] / sum(matrix[i])
+            matrix[i] = matrix[i] / (matrix[i].sum() + epsilon)
 
         for i in sources:
             matrix[i, i] = 1.0
 
-        for i in [x for x in np.arange(0, size - num_aug) if x not in sources[0]]:
+        for i in [x for x in np.arange(0, size - num_aug) if x not in sources]:
             matrix[i][i] = -1.0
 
         queue_list = [127] * size
         length_mel = 0
+        count = 0
         while length_mel < 2:
+            count += 1
+            if count > 1:
+                print("Error: Could not generate a wav file for the matrix, using a blank wav file instead.")
+                mel = get_melspectrogram_db(wav=np.zeros(5 * 44100), sr=44100)
+                break
             np.random.seed(np.random.randint(0, 99999, size=1))
             seeds = np.random.randint(0, 99999, size=1)
             sim_matrix = matrix[:size - num_aug, :size - num_aug]
             sim = Sim(sim_matrix, distributions, queue_list, seeds=seeds, log_path="logs/", generate_log=True,
-                      animation=False, record_history=False, logging_mode='Music')
-            sim.run(number_of_customers=10000)
+                      animation=False, record_history=False, logging_mode='Music', max_sim_time=0.5)
+            sim.run(number_of_customers=1000)
 
             file_path = process_adjsim_log(instruments=instruments, note_levels=note_levels)
 
@@ -110,5 +114,7 @@ def matrix_to_wav(matrices=[None], size=20, use_same_instrument=None):
 
         spectrograms.append(mel)
 
+    spectrograms = [s[:, start:end] for s in spectrograms]
+
     # return numpy array for first 5 seconds of each spectrogram
-    return spectrograms
+    return torch.stack(spectrograms).to(device)

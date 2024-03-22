@@ -55,6 +55,16 @@ def get_melspectrogram_db_tensor(waveform, sr=44100, n_fft=2048, hop_length=512,
 
 def get_melspectrogram_db_tensor_from_file(file_path):
     waveform, sample_rate = torchaudio.load(file_path, normalize=True)  # [(2, 88576), 44100]
+    waveform = waveform.mean(dim=0, keepdim=True)
+
+    if waveform.shape[0] == 1:
+        print("Mono")
+        waveform = waveform.squeeze()
+    elif waveform.shape[0] == 2:
+        print("Stereo")
+        
+    
     # waveform = waveform.mean(dim=0).unsqueeze(0)
     mel_spectrogram_db = get_melspectrogram_db_tensor(waveform, sample_rate)
+
     return mel_spectrogram_db

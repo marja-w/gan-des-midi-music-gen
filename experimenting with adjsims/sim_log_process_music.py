@@ -167,7 +167,7 @@ def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16
 
 
     # Read the log file line by line
-    with open("./experimenting with adjsims/logs/simulation.log", 'r') as f:
+    with open("./logs/simulation.log", 'r') as f:
         for line in f:
             count += 1
             if count > max:
@@ -176,7 +176,7 @@ def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16
             if processed_line:
                 midi_generator.process_line(processed_line)
 
-    filepath = './experimenting with adjsims/adj_sim_outputs/midi/output.mid' # need to change this if we want to keep the original midi files, not necessary for now
+    filepath = './adj_sim_outputs/midi/output.mid' # need to change this if we want to keep the original midi files, not necessary for now
 
     # save the output midi to /adj_sim_output/midi/output.mid
     midi_generator.save_midi(filename=filepath) 

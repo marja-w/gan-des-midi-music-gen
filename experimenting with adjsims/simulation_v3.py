@@ -36,6 +36,8 @@ class FlowBranchOperator:
         self.children = [] if children is None else [children[i] for i in range(len(children)) if self.probabilities[i] > 0]
         # reduce probabilities to only those with non-zero probability
         self.probabilities = [self.probabilities[i] for i in range(len(self.probabilities)) if self.probabilities[i] > 0]
+        # normalize probabilities
+        self.probabilities = [self.probabilities[i] / sum(self.probabilities) for i in range(len(self.probabilities))]
         self.shortest_queue = False
         if np.sum(self.probabilities) > 1 and origin is not None:
             logging.info(f"{origin} branch method set as shortest queue")
@@ -291,7 +293,7 @@ class Sim:
     arrival = 1
     departure = 2
 
-    def __init__(self, adj_matrix, distributions, queue_list, seeds=None, num_runs=None, generate_log=False, log_path='logs/', log_name=None, animation=False, record_history=False, logging_mode='All'):
+    def __init__(self, adj_matrix, distributions, queue_list, seeds=None, num_runs=None, generate_log=False, log_path='logs/', log_name=None, animation=False, record_history=False, logging_mode='All', max_sim_time=1000):
         """
         Initialize a Sim object.
 
@@ -311,6 +313,7 @@ class Sim:
         self.animation = animation
         self.record_history = record_history
         self.logging_mode = logging_mode
+        self.max_sim_time = max_sim_time
 
         if self.generate_log:
             if log_name is None:
@@ -474,6 +477,11 @@ class Sim:
                     self.ProcessArrival(evt)
                 else:
                     self.ProcessDeparture(evt)
+
+                # check if the run time has exceeded the max simulation time
+                if time.time() - start_time > self.max_sim_time:
+                    print(f"Simulation time exceeded max_sim_time input:{self.max_sim_time} seconds, ending simulation")
+                    break
 
             end_time = time.time()  # simulation end time
             elapsed_time = end_time - start_time  # calculate the difference
