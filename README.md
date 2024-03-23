@@ -42,3 +42,8 @@ TODO
 
 - [ ] review feedback on project description: should we do a beat tracker evaluation, to have data, and see GAN training as extension?
 - [ ] fix spectrogram dimensions of fake data: right now the fake data is too short, it should be 5*44100=220,500 samples long, but has dimensions (2, 88576)
+- train on [piano dataset](https://magenta.tensorflow.org/datasets/maestro) (midi version) (simpler than gtzan because it does not have vocals)
+- Marja write DataLoader for that
+- if this is done set up input with beats (second discriminator)
+- evaluation of BeatNet, All in One
+- create 2 versions of the SimNN: without beat data (Marja) and with beat data (Sadie)
