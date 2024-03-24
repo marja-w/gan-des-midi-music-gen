@@ -93,3 +93,16 @@ def my_collate(batch):
     :return: batch of size (x, 128, 431) where x is the number of splits for all songs in batch
     """
     return torch.cat(batch)  # stack the tensors with different number of rows x
+
+if __name__ == '__main__':
+    input_song = InputSong(audio_file="./data/classical.00000.wav")
+    maestro_dataset = MaestroDataset()
+
+    dataloader_input_song = DataLoader(input_song, batch_size=2, shuffle=True)
+    dataloader_maestro = DataLoader(maestro_dataset, batch_size=2, shuffle=True, collate_fn=my_collate)
+
+    for data in dataloader_input_song:
+        print(data.shape)
+
+    for data in dataloader_maestro:
+        print(data.shape)
