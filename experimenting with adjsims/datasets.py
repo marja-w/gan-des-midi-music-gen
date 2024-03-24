@@ -9,6 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.dataset import T_co
 
 from util import get_melspectrogram_db_tensor, get_melspectrogram_db_tensor_from_file, split_audio_data
+from util import get_melspectrogram_db_tensor_maestro
 from midi2audio import FluidSynth
 
 
@@ -55,7 +56,7 @@ class MaestroDataset(Dataset):
         """
         Get index to filepath mapping from metadata files of the dataset
         """
-        self.INPUT_FOLDER = "../data/maestro-v3.0.0"
+        self.INPUT_FOLDER = "./data/maestro-v3.0.0"
         self.meta_data_file = f"{self.INPUT_FOLDER}/maestro-v3.0.0.json"
         self.OUTPUT_PATH = "./data/maestro.wav"  # temporarily store the .wav file here
 
@@ -104,5 +105,9 @@ if __name__ == '__main__':
     for data in dataloader_input_song:
         print(data.shape)
 
+    count = 0
     for data in dataloader_maestro:
         print(data.shape)
+        count += 1
+        if count == 5:
+            break
