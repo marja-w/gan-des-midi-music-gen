@@ -68,3 +68,16 @@ def get_melspectrogram_db_tensor_from_file(file_path):
     mel_spectrogram_db = get_melspectrogram_db_tensor(waveform, sample_rate)
 
     return mel_spectrogram_db
+
+
+def split_audio_data(wav_file_path, hop_length_audio=5, window_size=5):
+    waveform, sample_rate = torchaudio.load(wav_file_path, normalize=True)  # get audio parameters
+    split_wvs = list()
+    channel = 0  # TODO what channel to use
+    for i in np.arange(0, len(waveform[channel]) + 1, hop_length_audio * sample_rate):
+        if i + hop_length_audio * sample_rate > len(waveform[channel]):
+            # make sure last sample is as long as the others
+            split_wvs.append(waveform[channel][-window_size * sample_rate:])
+        else:
+            split_wvs.append(waveform[channel][i:i + window_size * sample_rate])
+    return split_wvs

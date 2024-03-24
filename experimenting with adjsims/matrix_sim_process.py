@@ -109,7 +109,7 @@ def matrix_to_wav(matrices, size=20, use_same_instrument=None, start=0, end=174,
 
             time.sleep(0.2)
             # create a mel spectrogram for the wav file and save it
-            mel = get_melspectrogram_db_tensor_from_file(file_path=output_file)  # TODO: fix dimensions of output file data
+            mel = get_melspectrogram_db_tensor_from_file(file_path=output_file)
             length_mel = mel.shape[1]
 
         spectrograms.append(mel)

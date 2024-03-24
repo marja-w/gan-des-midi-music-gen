@@ -16,6 +16,8 @@ from util import get_melspectrogram_db_from_file, get_melspectrogram_db_tensor
 import scipy.io.wavfile as wav
 from matrix_sim_process import matrix_to_wav
 
+from datasets import InputSong
+
 
 def display_images(image_tensor, num_images=25, size=(1, 28, 28)):
     flatten_image = image_tensor.detach().cpu().view(-1, *size)
@@ -49,44 +51,6 @@ def weights_init(m):
         torch.nn.init.constant_(m.bias, val=0)
 
 
-class InputSong(Dataset):  # TODO: create dataset to get song data from one genre folder
-    def __init__(self, audio_file, window_size=5, hop_length_audio=5):  # TODO: write function in utils for cutting audio
-        # self.srate, audio = wav.read(audio_file)
-        #
-        # audio = audio.astype(np.float32) / 32767.0
-        # self.audio = (0.9 / max(audio)) * audio
-
-        # get audio parameters
-        waveform, sample_rate = torchaudio.load(audio_file, normalize=True)
-        self.orig_waveform = waveform
-        self.sample_rate = sample_rate
-
-        # self.audio_file_length = len(waveform[1]) / self.sample_rate
-        self.audio_file_length = waveform.size(dim=1) / sample_rate
-
-        # split audio TODO: put in utils
-        self.window_size = window_size  # length in seconds
-        self.hop_length_audio = hop_length_audio  # window stride in seconds
-        self.audio_files = list()
-        channel = 0  # TODO what channel to use
-        for i in np.arange(0, len(waveform[channel]) + 1, hop_length_audio * sample_rate):
-            if i + hop_length_audio * sample_rate > len(waveform[channel]):
-                # make sure last sample is as long as the others
-                self.audio_files.append(waveform[channel][-hop_length_audio * sample_rate:])
-            else:
-                self.audio_files.append(waveform[channel][i:i + hop_length_audio * sample_rate])
-
-    def __len__(self):
-        return len(self.audio_files)
-
-    def __getitem__(self, item):
-        wav = self.audio_files[item]
-        # Compute spectrogram
-        spectrogram = get_melspectrogram_db_tensor(wav, self.sample_rate)  # [(110250,), 22050]
-        return spectrogram  # (128, 216)
-        # return get_melspectrogram_db(self.audio_files[item], sr=self.sample_rate, n_fft=self.n_fft, hop_length=self.hop_length, n_mels=self.n_mels)
-
-
 class Generator(nn.Module):
     """"
     The Generator takes the noise vector as an input to generate the images that will resemble the training dataset(1,28,28) accomplished through a series of strided two-dimensional ConvTranspose2d layers. The ConvTranspose2d layers are paired with BatchNorm2d layers as they help with the flow of gradients during training, which is followed by a ReLU activation function.
@@ -114,14 +78,13 @@ class Generator(nn.Module):
         # Initialize weights to random values
         self._initialize_weights()
 
-    def _initialize_weights(self): # suggested by copilot
+    def _initialize_weights(self):  # suggested by copilot
         for m in self.modules():
             if isinstance(m, nn.ConvTranspose2d):
                 init.normal_(m.weight, 0.0, 0.02)
             elif isinstance(m, nn.BatchNorm2d):
                 init.normal_(m.weight, 1.0, 0.02)
                 init.constant_(m.bias, 0)
-
 
     def forward(self, input):
         '''
@@ -136,7 +99,7 @@ class Generator(nn.Module):
         x = torch.relu(self.batch_norm2(self.conv2(x)))
         x = torch.relu(self.batch_norm3(self.conv3(x)))
         x = self.conv4(x)
-        output = torch.sigmoid(x) # changed from tanh to sigmoid for better
+        output = torch.sigmoid(x)  # changed from tanh to sigmoid for better
 
         return output
 
@@ -146,6 +109,7 @@ class Discriminator(nn.Module):
     Takes as input a tensor of dimensions (batch_size, 128, 216) and returns probabilities for each element in the
     batch, resulting in a tensor of size (batch_size, 1)
     """
+
     def __init__(self, no_of_channels=1, disc_dim=32):
         super(Discriminator, self).__init__()
         self.conv1 = nn.Conv2d(1, 16, kernel_size=2, stride=1, padding=1)
@@ -278,7 +242,7 @@ if __name__ == '__main__':
     disc_opt = torch.optim.Adam(disc.parameters(), lr=lr, betas=(0.5, 0.999))
 
     # train params
-    n_epochs = 1
+    n_epochs = 2
     cur_step = 0
     mean_generator_loss = 0
     mean_discriminator_loss = 0
@@ -313,9 +277,9 @@ if __name__ == '__main__':
             # convert generated tensors to list of numpy matrices
             fake = fake.squeeze().detach().cpu().numpy()
 
-            fake = matrix_to_wav(fake, start=0, end=216, device=device)  # build simulator from matrix and get spectrograms from created audio
+            fake = matrix_to_wav(fake, start=0, end=216,
+                                 device=device)  # build simulator from matrix and get spectrograms from created audio
             # transform list of length batch_size with (128, 174) shaped matrices to tensor (batch_size, 128, 174)
-
 
             print(fake.shape)
 
