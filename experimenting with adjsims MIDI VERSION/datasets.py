@@ -6,6 +6,8 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import glob
 
+import pickle
+
 import pretty_midi
 
 def generate_piano_roll(midi_input, sequence_length=100, beats_length=50):
@@ -18,17 +20,16 @@ def generate_piano_roll(midi_input, sequence_length=100, beats_length=50):
         pretty_midi_obj = pretty_midi.PrettyMIDI(midi.filename)
     else:
         raise ValueError("midi_input must be a file path or a mido.MidiFile object")
-
     # Initialize piano roll array and duration array
     piano_roll = np.zeros((128, sequence_length))
     durations = np.zeros((128, sequence_length))
 
     # Convert MIDI events to piano roll representation
-    time = 0
+    my_time = 0
     note_on_time = np.zeros(128)  # to keep track of when each note was turned on
     for msg in midi:
-        time += msg.time
-        time_step = int(round(time))  # convert time to nearest time step
+        my_time += msg.time
+        time_step = int(round(my_time))  # convert time to nearest time step
         if time_step >= sequence_length:
             break  # stop if the sequence length is exceeded
         if msg.type == 'note_on':
@@ -50,24 +51,62 @@ def generate_piano_roll(midi_input, sequence_length=100, beats_length=50):
         # If beats is too long, truncate it
         beats = beats[:beats_length]
 
+    del pretty_midi_obj
+    del midi
+
     return piano_roll, durations, beats
 
-class MaestroDataset(Dataset):
-    def __init__(self, root_dir, sequence_length=100, beats_length=50):
+# USES PICKLE FILE
+class MaestroDatasetPickle(Dataset):
+    def __init__(self,  root_dir, sequence_length=100, beats_length=50, device='cpu'):
+        self.device = device
+        with open('data\\preprocessed_data.pkl', 'rb') as f:
+            self.data = pickle.load(f)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        piano_roll, durations, beats = self.data[idx]
+        piano_roll = piano_roll.to(self.device)
+        durations = durations.to(self.device)
+        beats = beats.to(self.device)
+        return piano_roll, durations, beats
+    
+# USES TORCH FILES
+class MaestroDatasetTorch(Dataset):
+    def __init__(self, root_dir, sequence_length=100, beats_length=50, device='cpu'):
+        self.data_dir = root_dir
+        self.device = device
+        self.file_list = sorted(glob.glob('data\\tensors\\*.pt'))
+
+    def __len__(self):
+        return len(self.file_list)
+
+    def __getitem__(self, idx):
+        return torch.load(self.file_list[idx])
+
+# USES MIDI FILES
+class MaestroDatasetMidi(Dataset):
+    def __init__(self, root_dir, sequence_length=100, beats_length=50, device='cpu'):
         self.root_dir = root_dir
         self.sequence_length = sequence_length
         self.beats_length = beats_length
+        self.device = device
         self.file_list = sorted(glob.glob('data\\maestro-v3.0.0\\**\\*.midi', recursive=True))
 
     def __len__(self):
         return len(self.file_list)
 
     def __getitem__(self, idx):
+        print(f"Loading data for index {idx}")
         midi_name = self.file_list[idx]
         piano_roll, durations, beats = generate_piano_roll(midi_name, self.sequence_length, self.beats_length)
-        piano_roll = torch.FloatTensor(piano_roll)
-        durations = torch.FloatTensor(durations)
-        beats = torch.FloatTensor(beats)
+        print(f"Data loaded, converting to tensors")
+        piano_roll = torch.from_numpy(piano_roll).float().to(self.device)
+        durations = torch.from_numpy(durations).float().to(self.device)
+        beats = torch.from_numpy(beats).float().to(self.device)
+        print(f"Tensors created for index {idx}")
         return piano_roll, durations, beats
     
 import unittest
@@ -87,7 +126,7 @@ class TestPianoRollGeneration(unittest.TestCase):
         midi_files = ['adj_sim_outputs\midi\output.mid', 'adj_sim_outputs\midi\output.mid', 'adj_sim_outputs\midi\output.mid']  # replace with paths to real MIDI files
         sequence_length = 100
         min_beats_length = 50
-        dataset = MaestroDataset(midi_files, sequence_length)
+        dataset = MaestroDatasetMidi(midi_files, sequence_length)
         piano_roll, durations, beats = dataset[0]
         self.assertEqual(piano_roll.shape, (128, sequence_length))
         self.assertEqual(durations.shape, (128, sequence_length))

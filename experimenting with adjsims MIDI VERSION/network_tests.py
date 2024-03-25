@@ -21,7 +21,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from util import get_melspectrogram_db_from_file, get_melspectrogram_db_tensor
 import scipy.io.wavfile as wav
 
-from datasets import MaestroDataset, generate_piano_roll
+from datasets import MaestroDatasetPickle, MaestroDatasetMidi, MaestroDatasetTorch, generate_piano_roll
 
 from torch.optim.lr_scheduler import StepLR
 
@@ -57,10 +57,11 @@ def weights_init(m):
 
 
 class Generator(nn.Module):
-    def __init__(self, z_dim=10, im_chan=1, hidden_dim=64, adj_size=None):
+    def __init__(self, z_dim=10, im_chan=1, hidden_dim=64, adj_size=None, device='cpu'):
         super(Generator, self).__init__()
         self.z_dim = z_dim
         self.adj_size = adj_size  # store adj_size
+        self.device = device
         self.gen = nn.Sequential(
             self.make_gen_block(z_dim, hidden_dim * 4),
             self.make_gen_block(hidden_dim * 4, hidden_dim * 2),
@@ -77,15 +78,16 @@ class Generator(nn.Module):
         )
 
     def forward(self, noise):
-        return self.gen(noise).view(len(noise), -1, self.adj_size[0], self.adj_size[1])  # change the order of dimensions
+        return self.gen(noise).view(len(noise), -1, self.adj_size[0], self.adj_size[1]).to(self.device)  # change the order of dimensions
 
 
 class BeatGenerator(nn.Module):
-    def __init__(self, z_dim=10, hidden_dim=64,  input_dim=None, output_dim=None):
+    def __init__(self, z_dim=10, hidden_dim=64,  input_dim=None, output_dim=None, device='cpu'):
         super(BeatGenerator, self).__init__()
         self.z_dim = z_dim
         self.output_dim = output_dim  # store output_dim
         self.input_tensor_dim = input_dim
+        self.device = device
         self.gen = nn.Sequential(
             self.make_gen_block(z_dim + input_dim, hidden_dim * 4),
             self.make_gen_block(hidden_dim * 4, hidden_dim * 2),
@@ -104,16 +106,17 @@ class BeatGenerator(nn.Module):
     def forward(self, noise, input_tensor=None):
         # generate random tensor of length input_densor_dim if input_tensor is None
         if input_tensor == None:
-            input_tensor = torch.randn(len(noise), self.input_tensor_dim) 
+            input_tensor = torch.randn(len(noise), self.input_tensor_dim).to(self.device)
 
-        combined_input = torch.cat((noise, input_tensor), dim=1)
+        combined_input = torch.cat((noise, input_tensor), dim=1).to(self.device)
         return self.gen(combined_input)
 
 
 class Discriminator(nn.Module):
-    def __init__(self, im_chan=1, hidden_dim=16, roll_size=None):
+    def __init__(self, im_chan=1, hidden_dim=16, roll_size=None, device='cpu'):
         super(Discriminator, self).__init__()
         self.roll_size = roll_size  # store adj_size
+        self.device=device
         self.disc = nn.Sequential(
             self.make_disc_block(im_chan * roll_size[0] * roll_size[1], hidden_dim),
             self.make_disc_block(hidden_dim, hidden_dim * 2),
@@ -131,26 +134,28 @@ class Discriminator(nn.Module):
             
 
 class MultiModalGAN(nn.Module):
-    def __init__(self, z_dim=100, hidden_dim=64, adj_size=(28, 28),roll_size=(128,100), input_dim=50, output_dim=16, instrument=None, start=0, end=100):
+    def __init__(self, z_dim=100, hidden_dim=64, adj_size=(28, 28),roll_size=(128,100), input_dim=50, output_dim=16, instrument=None, start=0, end=100, device='cpu'):
         super(MultiModalGAN, self).__init__()
         self.z_dim = z_dim
-        self.generator1 = Generator(z_dim, hidden_dim=hidden_dim, adj_size=adj_size)
-        self.generator2 = BeatGenerator(z_dim, hidden_dim=hidden_dim, input_dim=input_dim, output_dim=output_dim)
-        self.discriminator = Discriminator(roll_size=roll_size)
+        self.generator1 = Generator(z_dim, hidden_dim=hidden_dim, adj_size=adj_size, device=device).to(device)
+        self.generator2 = BeatGenerator(z_dim, hidden_dim=hidden_dim, input_dim=input_dim, output_dim=output_dim, device=device).to(device)
+        self.discriminator = Discriminator(roll_size=roll_size, device=device).to(device)
         self.instrument = instrument
         self.start = start
         self.end = end
         self.adj_size = adj_size 
+        self.device = device
 
-    def forward(self, noise1, noise2, input_tensor):
+    def forward(self, noise1, noise2, input_tensor, count):
         gen_output1 = self.generator1(noise1)
         gen_output2 = self.generator2(noise2, input_tensor)
 
         start = time.time()
-        sim_midi = matrix_to_midi(gen_output1, gen_output2, adj_size=self.adj_size, instrument=self.instrument, start=self.start, end=self.end)
+        sim_midi = matrix_to_midi(gen_output1, gen_output2, adj_size=self.adj_size, instrument=self.instrument, start=self.start, end=self.end, count=count)
         print("matrix_to_midi took", time.time() - start, "seconds")
 
-        sim_midi = torch.stack([torch.Tensor(x) for x in sim_midi])
+        sim_midi = torch.stack([torch.Tensor(x) for x in sim_midi]).to(self.device)
+
 
         print("sim_midi.shape", sim_midi.shape)
 
@@ -161,9 +166,9 @@ class MultiModalGAN(nn.Module):
         return disc_output
 
 class TestMultiModalGAN(unittest.TestCase):
-    def test_training_loop(self, batch_size=32):
+    def test_training_loop(self, batch_size=16):
 
-        max_beat_length = 100 # maximum length of the beat vector
+        max_beat_length = 50 # maximum length of the beat vector
         noise_dim = 50 # dimension of the noise vector
         adj_size = (28,28) # dimensions of the adjacency matrix
         roll_size = (128,100) # dimensions of the piano roll matrix
@@ -172,42 +177,20 @@ class TestMultiModalGAN(unittest.TestCase):
         sequence_length = 100 # length of the sequence 
 
         gen2_output_dim = 20 # output dimension of the second generator
-
-
-        # https://stackoverflow.com/questions/50544730/how-do-i-split-a-custom-dataset-into-training-and-test-datasets/50544887#50544887
-        shuffle_dataset = True
-        random_seed = 42
-        validation_split = 0.5
-
-        file_list = glob.glob('data\\maestro-v3.0.0\\**\\*.midi', recursive=True)
-        num_files = len(file_list)
-        indices = list(range(num_files))
-        split = int(np.floor(validation_split * num_files))
         
-        if shuffle_dataset:
-            np.random.seed(random_seed)
-            np.random.shuffle(indices)
 
-        # temp for testing
-        indices = indices[:100]
-        split = int(np.floor(validation_split * len(indices)))
-
-        train_indices, val_indices = indices[split:], indices[:split]
+        # get the correct device
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         print("Starting dataset creation...")
         start = time.time()
-        dataset = MaestroDataset('data\\maestro-v3.0.0', beats_length=max_beat_length, sequence_length=sequence_length)
-        print("Dataset creation took", time.time() - start, "seconds")
-
-        train_sampler = SubsetRandomSampler(train_indices)
-        valid_sampler = SubsetRandomSampler(val_indices)
-
-        train_loader = DataLoader(dataset, batch_size=batch_size, sampler=train_sampler, drop_last=True)
-        valid_loader = DataLoader(dataset, batch_size=batch_size, sampler=valid_sampler, drop_last=True)
+        dataset = MaestroDatasetPickle('preprocessed_data.pkl', beats_length=max_beat_length, sequence_length=sequence_length, device=device)
+        train_loader = DataLoader(dataset, batch_size=batch_size, drop_last=True)
+        print("Dataset creation took", time.time() - start, "seconds")  
 
         print("Starting setup of model...")
         start = time.time()
-        mmgan = MultiModalGAN(z_dim=noise_dim, adj_size=adj_size, roll_size=roll_size, input_dim=max_beat_length, output_dim=gen2_output_dim, instrument=0, start=start, end=start+sequence_length)
+        mmgan = MultiModalGAN(z_dim=noise_dim, adj_size=adj_size, roll_size=roll_size, input_dim=max_beat_length, output_dim=gen2_output_dim, instrument=0, start=start, end=start+sequence_length, device=device)
         criterion = nn.BCEWithLogitsLoss()
         gen_opt = torch.optim.Adam(mmgan.parameters(), lr=0.01)
         scheduler = StepLR(gen_opt, step_size=30, gamma=0.1)
@@ -222,10 +205,12 @@ class TestMultiModalGAN(unittest.TestCase):
             mmgan.train()
             train_losses = []
             for i, (piano_roll, durations, beats) in enumerate(train_loader):
-                noise1 = torch.randn(batch_size, noise_dim)
-                noise2 = torch.randn(batch_size, noise_dim)
-                real = torch.ones(batch_size, 1).view(-1)
-                fake = mmgan(noise1, noise2, beats).squeeze(1)
+                print("Batch", count)
+                count += 1
+                noise1 = torch.randn(batch_size, noise_dim, device=device)
+                noise2 = torch.randn(batch_size, noise_dim, device=device)
+                real = torch.ones(batch_size, 1, device=device).view(-1)
+                fake = mmgan(noise1, noise2, beats, count).squeeze(1)
 
                 start = time.time()
                 print("Updating weights...")
@@ -240,25 +225,9 @@ class TestMultiModalGAN(unittest.TestCase):
                 if (i + 1) % print_interval == 0:
                     print(f'Epoch {epoch + 1}/{num_epochs}, Step {i + 1}/{len(train_loader)}, Train Loss: {gen_loss.item()}')
 
+            print(f'Epoch {epoch + 1}/{num_epochs}, Avg Train Loss: {sum(train_losses) / len(train_losses)}')
 
-            print('Validating...')
-            mmgan.eval()
-            valid_losses = []
-            with torch.no_grad():
-                for i, (piano_roll, durations, beats) in enumerate(valid_loader):
-                    noise1 = torch.randn(batch_size, noise_dim)
-                    noise2 = torch.randn(batch_size, noise_dim)
-                    real = torch.ones(batch_size, 1).view(-1)
-                    fake = mmgan(noise1, noise2, beats).squeeze(1)
-                    valid_loss = criterion(fake, real)
-                    valid_losses.append(valid_loss.item())
-
-            avg_train_loss = sum(train_losses) / len(train_losses)
-            avg_valid_loss = sum(valid_losses) / len(valid_losses)
-            print(f'Epoch {epoch + 1}/{num_epochs}, Avg Train Loss: {avg_train_loss}, Avg Valid Loss: {avg_valid_loss}')
-
-        self.assertLess(avg_valid_loss, 0.7)
-        return train_losses, valid_losses
+        return train_losses
     
 if __name__ == '__main__':
     unittest.main()

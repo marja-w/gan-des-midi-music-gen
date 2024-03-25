@@ -12,7 +12,7 @@ import time
 def run_simulation(sim, num_customers):
     sim.run(number_of_customers=num_customers)
 
-def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, start=0, end=100):
+def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, start=0, end=100, count=0):
     num_aug = 3
     midi_rolls = []
 
@@ -117,7 +117,7 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
 
             sim_thread.start()
 
-            sim_thread.join(timeout=1.0)
+            sim_thread.join(timeout=2.0)
 
             if sim_thread.is_alive():
                 print("Simulation took too long, stopping")
@@ -125,11 +125,13 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
             else:
 
                 print("Sim took", time.time() - start, "seconds")
-                roll, _, _ = process_adjsim_log(instruments=instruments, note_levels=note_levels, gen2_output=gen2_output[index][10:])
+                roll, _, _ = process_adjsim_log(instruments=instruments, note_levels=note_levels, gen2_output=gen2_output[index][10:], count=count)
+
         except:
             print("Error in simulation thread, using blank piano roll instead.")
             roll = np.zeros((128, 100))
 
+        del sim
 
         midi_rolls.append(roll)
 

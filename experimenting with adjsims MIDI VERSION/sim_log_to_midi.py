@@ -6,6 +6,8 @@ import re
 import math
 import random
 
+import time
+
 from datasets import generate_piano_roll
 
 # create a class that handles processed_line tuples and generates a midi file based on the data
@@ -30,9 +32,9 @@ class MidiGenerator:
         self.base = int(gen2_output[3] * 100)
         if self.base == 0:
             self.base = 50
-        self.tempo = int(gen2_output[4] * 100000)
+        self.tempo = int(gen2_output[4] * 10000)
         if self.tempo == 0:
-            self.tempo = 500000
+            self.tempo = 50000
 
         self.var = int(gen2_output[5] * int(126/2))
         if self.var == 0:
@@ -166,7 +168,7 @@ class LogLineProcessor:
 
 import numpy as np
 
-def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16), note_levels=np.random.randint(0, 127, 16), gen2_output=None):
+def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16), note_levels=np.random.randint(0, 127, 16), gen2_output=None, count=0):
     # Example usage:
     log_processor = LogLineProcessor(r"INFO:root:([0-9]*\.[0-9]+|[0-9]+) - ([0-9]*\.[0-9]+|[0-9]+) - ([0-9]*\.[0-9]+|[0-9]+) - (arrival|departure)")
 
@@ -188,5 +190,8 @@ def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16
             if processed_line:
                 midi_generator.process_line(processed_line)
 
+    if count % 10 == 0:
+        # save the midi file
+        mido.save('adj_sim_outputs/midi/simulation_{}.mid'.format(count), midi_generator.mid)
 
     return generate_piano_roll(midi_generator.mid)
