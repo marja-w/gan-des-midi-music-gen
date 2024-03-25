@@ -226,11 +226,15 @@ class TestMultiModalGAN(unittest.TestCase):
                 noise2 = torch.randn(batch_size, noise_dim)
                 real = torch.ones(batch_size, 1).view(-1)
                 fake = mmgan(noise1, noise2, beats).squeeze(1)
+
+                start = time.time()
+                print("Updating weights...")
                 gen_loss = criterion(fake, real)
                 gen_loss.backward()
                 gen_opt.step()
                 gen_opt.zero_grad()
                 scheduler.step()
+                print("Updating weights took", time.time() - start, "seconds")
 
                 train_losses.append(gen_loss.item())
                 if (i + 1) % print_interval == 0:

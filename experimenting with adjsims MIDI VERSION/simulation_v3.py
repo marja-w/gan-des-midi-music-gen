@@ -36,9 +36,14 @@ class FlowBranchOperator:
         # reduce children to only those with non-zero probability
         self.children = [] if children is None else [children[i] for i in range(len(children)) if self.probabilities[i] > 0]
         # reduce probabilities to only those with non-zero probability
-        self.probabilities = [self.probabilities[i] for i in range(len(self.probabilities)) if self.probabilities[i] > 0]
+        self.probabilities = [self.probabilities[i] for i in range(len(self.probabilities)) if self.probabilities[i] > 0 ]
         # normalize probabilities
+        for i in range(len(self.probabilities)):
+            if self.probabilities[i] < 0:
+                self.probabilities[i] = 0
+
         self.probabilities = [self.probabilities[i] / sum(self.probabilities) for i in range(len(self.probabilities))]
+
         self.shortest_queue = False
         if np.sum(self.probabilities) > 1 and origin is not None:
             logging.info(f"{origin} branch method set as shortest queue")

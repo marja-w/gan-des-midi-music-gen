@@ -68,7 +68,12 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
 
         sucess = True
         for i in range(size - num_aug):
-            matrix[i] = np.abs(matrix[i]) / np.abs(matrix[i].sum())
+            try:
+                matrix[i] = np.abs(matrix[i]) / np.abs(matrix[i].sum())
+            except:
+                # set random values to index of servers with sum to 1
+                matrix[i] = np.random.rand(size - num_aug)
+                matrix[i] = np.abs(matrix[i]) / np.abs(matrix[i].sum())
             if matrix[i].sum() == 0:
                 sucess = False
 
