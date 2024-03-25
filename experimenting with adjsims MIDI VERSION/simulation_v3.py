@@ -31,7 +31,8 @@ class FlowBranchOperator:
             probabilities (list): A list of probabilities for each child.
             children (list, optional): A list of children. Defaults to None.
         """
-        self.probabilities = probabilities
+        #https://stackoverflow.com/questions/46539431/np-random-choice-probabilities-do-not-sum-to-1
+        self.probabilities = np.asarray(probabilities).astype('float64')
         # reduce children to only those with non-zero probability
         self.children = [] if children is None else [children[i] for i in range(len(children)) if self.probabilities[i] > 0]
         # reduce probabilities to only those with non-zero probability
@@ -493,7 +494,9 @@ class Sim:
             if self.generate_log and self.total_customers < 100:
                 if self.logging_mode == 'All':
                     logging.info(f"{i+1}: {elapsed_time} elapsed time for {self.Clock} simulation time with {self.total_customers} customers")
-            self.calculate_metrics()
+
+            if self.record_history and self.clock != 0:
+                self.calculate_metrics()
 
 
         if self.generate_log:

@@ -105,8 +105,6 @@ def matrix_to_wav(matrices, size=20, use_same_instrument=None, start=0, end=174,
 
             fs.midi_to_audio(file_path, output_file)
 
-            print('Generated wav file:', output_file)
-
             time.sleep(0.2)
             # create a mel spectrogram for the wav file and save it
             mel = get_melspectrogram_db_tensor_from_file(file_path=output_file)
