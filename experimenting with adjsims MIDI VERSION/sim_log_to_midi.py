@@ -179,7 +179,7 @@ class MidiGenerator:
             # add the track to the midi file
             self.mid.tracks.append(self.track)
 
-            #self.clean_midi_file(self.mid)
+            self.clean_midi_file(self.mid)
 
             # save the midi file
             self.mid.save(filename)

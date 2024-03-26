@@ -247,7 +247,7 @@ class TestMultiModalGAN(unittest.TestCase):
 
                 train_losses.append(gen_loss.item())
                 if (i + 1) % print_interval == 0:
-                    print(f'Epoch {epoch + 1}/{num_epochs}, Step {i + 1}/{len(train_loader)}, Train Loss: {gen_loss.item()}')
+                    print(f'Epoch {epoch + 1}/{num_epochs}, Step {i + 1}/{len(train_loader)}, Train Loss: {gen_loss.item()}, Failures: {failed_sim_count}')
 
             print(f'Epoch {epoch + 1}/{num_epochs}, Avg Train Loss: {sum(train_losses) / len(train_losses)}')
             print("Total failures:", total_failures, "Total seen:", total_seen)
