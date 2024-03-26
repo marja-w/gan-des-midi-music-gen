@@ -35,7 +35,7 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
         sources = np.where(matrix[size - num_aug] > gen2_output[index][0])
         #sources = np.where(matrix[size - num_aug] > 0.5 )
         if len(sources[0]) == 0 or len(sources[0] == size - num_aug):
-            sources = np.random.choice(size - num_aug, size=(size - num_aug) // 8, replace=False)
+            sources = np.random.choice(size - num_aug, size=(size - num_aug) // 4, replace=False)
         else:
             sources = sources[0]
 
@@ -52,8 +52,6 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
         note_levels = np.ones(size - num_aug)
         for i in range(size - num_aug):
             note_levels[i] = max(0,(int(matrix[size - num_aug + 2, i] * 126)) % 128)
-            # print("Note levels:", note_levels)
-        # print("len(note_levels):", len(note_levels))
 
         # create a normal distribution for each server based on the values in the 25th and 26th rows where the values are between 0 and 1
         distributions = []
