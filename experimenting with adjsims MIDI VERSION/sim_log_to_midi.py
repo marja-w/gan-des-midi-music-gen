@@ -109,7 +109,8 @@ class MidiGenerator:
 
 
         if midi_time > 100 or len(self.track) > 500:
-            return False
+            return -1
+        
 
         #TO-DO THIS IS A BIT OF A WORK AROUND.... SHOULD NOT BE NEEDED
         if self.previous_time > midi_time:
@@ -260,6 +261,8 @@ def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16
                 processed_line = log_processor.process_line(line)
                 if processed_line:
                     midi_generator.process_line(processed_line)
+                elif processed_line is -1:
+                    break
                 else:
                     return None, None, None
     except:
