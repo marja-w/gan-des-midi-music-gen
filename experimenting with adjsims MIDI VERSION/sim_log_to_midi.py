@@ -113,7 +113,6 @@ class MidiGenerator:
             #TO-DO THIS IS A BIT OF A WORK AROUND.... SHOULD NOT BE NEEDED ( Think simulator is generating negative times for some distributions)
             if self.previous_time > midi_time:
                 midi_time = self.previous_time
-            self.previous_time = midi_time
             
 
             if array4 == 'arrival' and  ( int(array2) % self.skip_1 == 0 or int(array2) % self.skip_2 == 0 or int(array2) % self.skip_3 == 0):
@@ -143,6 +142,7 @@ class MidiGenerator:
 
                 # change the instrument to the instrument of the server
                 on_time = int(max(self.previous_time, int(self.future_events[array3]['time'])))
+                self.previous_time = on_time
                 #self.track.append(mido.Message('program_change', program=self.instruments[array3], time=on_time))
                 self.track.append(mido.Message('note_on', channel=0, note=int(self.note_offsets[array3]), velocity=int(self.future_events[array3]['velocity']),  time=on_time))
 
@@ -153,6 +153,7 @@ class MidiGenerator:
                     # change the instrument to the instrument of the server
                     #off_time =int( max(0,int(self.future_events[array3]['time'] + (midi_time-self.future_events[array3]['time']) + max(0,self.future_events[array3]['service_time'])))) 
                     off_time = int( max(self.previous_time, int(self.future_events[array3]['time'] + (midi_time-self.future_events[array3]['time']) + max(0,self.future_events[array3]['service_time']))))
+                    self.previous_time = off_time
                     #self.track.append(mido.Message('program_change', program=self.instruments[array3], time=off_time))
                     self.track.append(mido.Message('note_off', channel=0, note=int(self.note_offsets[array3]), velocity=int(self.future_events[array3]['velocity']),  time=off_time))
 
@@ -179,10 +180,14 @@ class MidiGenerator:
             # add the track to the midi file
             self.mid.tracks.append(self.track)
 
-            self.clean_midi_file(self.mid)
-
+            try:
+                self.clean_midi_file(self.mid)
+            except:
+                print("Error in cleaning midi file")
+                pass
             # save the midi file
             self.mid.save(filename)
+            print("Successfully saved midi file")
         except:
             pass
 
@@ -194,14 +199,14 @@ class MidiGenerator:
                 if msg.type == 'note_on':
                     if msg.note in note_on_times and note_on_times[msg.note] > 0:
                         msgs_to_remove.append(j)
-                    note_on_times[msg.note] = msg.time
+                    else:
+                        note_on_times[msg.note] = msg.time
                 elif msg.type == 'note_off':
                     if msg.note not in note_on_times or note_on_times[msg.note] == 0:
                         msgs_to_remove.append(j)
                     else:
                         note_on_times[msg.note] = 0
-                if msg.time > 100:
-                    msgs_to_remove.append(j)
+
             for index in sorted(msgs_to_remove, reverse=True):
                 del track[index]
 
