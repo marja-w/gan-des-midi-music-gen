@@ -29,9 +29,9 @@ class MidiGenerator:
         self.skip_3 = max(2, int(gen2_output[2] * 10))
         if self.skip_3 == 0:
             self.skip_3 = np.random.randint(1, 10)
-        self.base = int(gen2_output[3] * 75)
-        if self.base == 0:
-            self.base = 50
+        self.base = int(gen2_output[3] * 90)
+        if self.base < 50:
+            self.base = 80
         self.tempo = min(int(gen2_output[4] * 1000000), 16777215)
         if self.tempo == 0:
             self.tempo = 500000
@@ -108,11 +108,14 @@ class MidiGenerator:
         midi_time = max(0,int(float(array1)))
 
 
+        if midi_time > 100 or len(self.track) > 500:
+            return False
+
         #TO-DO THIS IS A BIT OF A WORK AROUND.... SHOULD NOT BE NEEDED
         if self.previous_time > midi_time:
             midi_time = self.previous_time
         self.previous_time = midi_time
-
+        
 
         if array4 == 'arrival' and  ( int(array2) % self.skip_1 == 0 or int(array2) % self.skip_2 == 0 or int(array2) % self.skip_3 == 0):
             if array3 in self.queue_lengths:
@@ -140,7 +143,7 @@ class MidiGenerator:
             self.future_events[array3]['service_time'] = int(queue_length)
 
             # change the instrument to the instrument of the server
-            on_time = int(max(0, int(self.future_events[array3]['time'])))
+            on_time = int(max(self.previous_time, int(self.future_events[array3]['time'])))
             #self.track.append(mido.Message('program_change', program=self.instruments[array3], time=on_time))
             self.track.append(mido.Message('note_on', channel=0, note=int(self.note_offsets[array3]), velocity=int(self.future_events[array3]['velocity']),  time=on_time))
 
@@ -149,7 +152,8 @@ class MidiGenerator:
 
             if array3 in self.future_events:
                 # change the instrument to the instrument of the server
-                off_time =int( max(0,int(self.future_events[array3]['time'] + (midi_time-self.future_events[array3]['time']) + max(0,self.future_events[array3]['service_time'])))) 
+                #off_time =int( max(0,int(self.future_events[array3]['time'] + (midi_time-self.future_events[array3]['time']) + max(0,self.future_events[array3]['service_time'])))) 
+                off_time = int( max(self.previous_time, int(self.future_events[array3]['time'] + (midi_time-self.future_events[array3]['time']) + max(0,self.future_events[array3]['service_time']))))
                 #self.track.append(mido.Message('program_change', program=self.instruments[array3], time=off_time))
                 self.track.append(mido.Message('note_off', channel=0, note=int(self.note_offsets[array3]), velocity=int(self.future_events[array3]['velocity']),  time=off_time))
 
@@ -162,16 +166,64 @@ class MidiGenerator:
             self.future_events[array3]['service_time'] += midi_time
 
     def save_midi(self, filename):
+
+        # remove midi messages beyond a certain time
+        for msg in self.track:
+            if msg.time > 100:
+                self.track.remove(msg)
+
+
         # add the end of track message
         self.track.append(mido.MetaMessage('end_of_track'))
 
         try:
             # add the track to the midi file
             self.mid.tracks.append(self.track)
+
+            self.sort_midi_file(self.mid)
+            self.clean_midi_file(self.mid)
+
             # save the midi file
             self.mid.save(filename)
         except:
             pass
+
+    def clean_midi_file(midi_file):
+        for i, track in enumerate(midi_file.tracks):
+            note_on_times = {}
+            msgs_to_remove = []
+            for j, msg in enumerate(track):
+                if msg.type == 'note_on':
+                    if msg.note in note_on_times and note_on_times[msg.note] > 0:
+                        msgs_to_remove.append(j)
+                    note_on_times[msg.note] = msg.time
+                elif msg.type == 'note_off':
+                    if msg.note not in note_on_times or note_on_times[msg.note] == 0:
+                        msgs_to_remove.append(j)
+                    else:
+                        note_on_times[msg.note] = 0
+                if msg.time > 100:
+                    msgs_to_remove.append(j)
+            for index in sorted(msgs_to_remove, reverse=True):
+                del track[index]
+
+    def sort_midi_file(midi_file):
+        for track in midi_file.tracks:
+            # Convert from delta times to absolute times
+            abs_time = 0
+            for msg in track:
+                abs_time += msg.time
+                msg.time = abs_time
+
+            # Sort messages by time
+            track.sort(key=lambda msg: msg.time)
+
+            # Convert back from absolute times to delta times
+            prev_time = 0
+            for msg in track:
+                delta_time = msg.time - prev_time
+                msg.time = delta_time
+                prev_time = msg.time
 
 class LogLineProcessor:
     def __init__(self, regex_format):
@@ -208,6 +260,8 @@ def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16
                 processed_line = log_processor.process_line(line)
                 if processed_line:
                     midi_generator.process_line(processed_line)
+                else:
+                    return None, None, None
     except:
         raise ValueError("Error in processing log file")
 
