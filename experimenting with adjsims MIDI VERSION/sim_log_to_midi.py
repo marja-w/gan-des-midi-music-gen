@@ -108,63 +108,61 @@ class MidiGenerator:
         midi_time = max(0,int(float(array1)))
 
 
-        if midi_time > 100 or len(self.track) > 500:
-            return -1
-        
+        if midi_time < 100 and len(self.track) < 500:
+            
+            #TO-DO THIS IS A BIT OF A WORK AROUND.... SHOULD NOT BE NEEDED ( Think simulator is generating negative times for some distributions)
+            if self.previous_time > midi_time:
+                midi_time = self.previous_time
+            self.previous_time = midi_time
+            
 
-        #TO-DO THIS IS A BIT OF A WORK AROUND.... SHOULD NOT BE NEEDED
-        if self.previous_time > midi_time:
-            midi_time = self.previous_time
-        self.previous_time = midi_time
-        
-
-        if array4 == 'arrival' and  ( int(array2) % self.skip_1 == 0 or int(array2) % self.skip_2 == 0 or int(array2) % self.skip_3 == 0):
-            if array3 in self.queue_lengths:
-                self.queue_lengths[array3] += 1
-            else:
-                self.queue_lengths[array3] = 1
+            if array4 == 'arrival' and  ( int(array2) % self.skip_1 == 0 or int(array2) % self.skip_2 == 0 or int(array2) % self.skip_3 == 0):
+                if array3 in self.queue_lengths:
+                    self.queue_lengths[array3] += 1
+                else:
+                    self.queue_lengths[array3] = 1
 
 
-            # I NEED TO TEST HOW THIS WORKS FOR NOW AND CHANGE IT LATER IF BAD RESULTS
-            queue_length = self.queue_lengths[array3]
-            if 127 <= queue_length < 2*127:
-                queue_length = min(127,max(0, 2*127 - queue_length))
-            elif queue_length >= 2*127:
-                queue_length = min(127,max(0, queue_length % 127))
+                # I NEED TO TEST HOW THIS WORKS FOR NOW AND CHANGE IT LATER IF BAD RESULTS
+                queue_length = self.queue_lengths[array3]
+                if 127 <= queue_length < 2*127:
+                    queue_length = min(127,max(0, 2*127 - queue_length))
+                elif queue_length >= 2*127:
+                    queue_length = min(127,max(0, queue_length % 127))
 
-            max_customer_id = self.base + self.var
-            customer_id = self.base - self.var + int(array2)
+                max_customer_id = self.base + self.var
+                customer_id = self.base - self.var + int(array2)
 
-            if customer_id > max_customer_id:
-                customer_id = max_customer_id - ( customer_id % max_customer_id)
+                if customer_id > max_customer_id:
+                    customer_id = max_customer_id - ( customer_id % max_customer_id)
 
-            self.future_events[array3] = {}
-            self.future_events[array3]['time'] = int(midi_time)
-            self.future_events[array3]['velocity'] = int(customer_id) % 126
-            self.future_events[array3]['service_time'] = int(queue_length)
+                self.future_events[array3] = {}
+                self.future_events[array3]['time'] = int(midi_time)
+                self.future_events[array3]['velocity'] = int(customer_id) % 126
+                self.future_events[array3]['service_time'] = int(queue_length)
 
-            # change the instrument to the instrument of the server
-            on_time = int(max(self.previous_time, int(self.future_events[array3]['time'])))
-            #self.track.append(mido.Message('program_change', program=self.instruments[array3], time=on_time))
-            self.track.append(mido.Message('note_on', channel=0, note=int(self.note_offsets[array3]), velocity=int(self.future_events[array3]['velocity']),  time=on_time))
-
-
-        elif array4 == 'departure' and  ( int(array2) % self.skip_1 == 0 or int(array2) % self.skip_2 == 0 or int(array2) % self.skip_3 == 0):
-
-            if array3 in self.future_events:
                 # change the instrument to the instrument of the server
-                #off_time =int( max(0,int(self.future_events[array3]['time'] + (midi_time-self.future_events[array3]['time']) + max(0,self.future_events[array3]['service_time'])))) 
-                off_time = int( max(self.previous_time, int(self.future_events[array3]['time'] + (midi_time-self.future_events[array3]['time']) + max(0,self.future_events[array3]['service_time']))))
-                #self.track.append(mido.Message('program_change', program=self.instruments[array3], time=off_time))
-                self.track.append(mido.Message('note_off', channel=0, note=int(self.note_offsets[array3]), velocity=int(self.future_events[array3]['velocity']),  time=off_time))
+                on_time = int(max(self.previous_time, int(self.future_events[array3]['time'])))
+                #self.track.append(mido.Message('program_change', program=self.instruments[array3], time=on_time))
+                self.track.append(mido.Message('note_on', channel=0, note=int(self.note_offsets[array3]), velocity=int(self.future_events[array3]['velocity']),  time=on_time))
 
-            if array3 in self.queue_lengths:
-                self.queue_lengths[array3] -= 1
-            else:
-                self.queue_lengths[array3] = 0
 
-        elif array4 == 'processing' and  ( int(array2) % self.skip_1 == 0 or int(array2) % self.skip_2 == 0 or int(array2) % self.skip_3 == 0):
-            self.future_events[array3]['service_time'] += midi_time
+            elif array4 == 'departure' and  ( int(array2) % self.skip_1 == 0 or int(array2) % self.skip_2 == 0 or int(array2) % self.skip_3 == 0):
+
+                if array3 in self.future_events:
+                    # change the instrument to the instrument of the server
+                    #off_time =int( max(0,int(self.future_events[array3]['time'] + (midi_time-self.future_events[array3]['time']) + max(0,self.future_events[array3]['service_time'])))) 
+                    off_time = int( max(self.previous_time, int(self.future_events[array3]['time'] + (midi_time-self.future_events[array3]['time']) + max(0,self.future_events[array3]['service_time']))))
+                    #self.track.append(mido.Message('program_change', program=self.instruments[array3], time=off_time))
+                    self.track.append(mido.Message('note_off', channel=0, note=int(self.note_offsets[array3]), velocity=int(self.future_events[array3]['velocity']),  time=off_time))
+
+                if array3 in self.queue_lengths:
+                    self.queue_lengths[array3] -= 1
+                else:
+                    self.queue_lengths[array3] = 0
+
+            elif array4 == 'processing' and  ( int(array2) % self.skip_1 == 0 or int(array2) % self.skip_2 == 0 or int(array2) % self.skip_3 == 0):
+                self.future_events[array3]['service_time'] += midi_time
 
     def save_midi(self, filename):
 
@@ -181,8 +179,7 @@ class MidiGenerator:
             # add the track to the midi file
             self.mid.tracks.append(self.track)
 
-            self.sort_midi_file(self.mid)
-            self.clean_midi_file(self.mid)
+            #self.clean_midi_file(self.mid)
 
             # save the midi file
             self.mid.save(filename)
@@ -210,21 +207,8 @@ class MidiGenerator:
 
     def sort_midi_file(midi_file):
         for track in midi_file.tracks:
-            # Convert from delta times to absolute times
-            abs_time = 0
-            for msg in track:
-                abs_time += msg.time
-                msg.time = abs_time
-
             # Sort messages by time
             track.sort(key=lambda msg: msg.time)
-
-            # Convert back from absolute times to delta times
-            prev_time = 0
-            for msg in track:
-                delta_time = msg.time - prev_time
-                msg.time = delta_time
-                prev_time = msg.time
 
 class LogLineProcessor:
     def __init__(self, regex_format):
@@ -261,10 +245,7 @@ def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16
                 processed_line = log_processor.process_line(line)
                 if processed_line:
                     midi_generator.process_line(processed_line)
-                elif processed_line is -1:
-                    break
-                else:
-                    return None, None, None
+
     except:
         raise ValueError("Error in processing log file")
 
