@@ -176,41 +176,37 @@ class MidiGenerator:
         # add the end of track message
         self.track.append(mido.MetaMessage('end_of_track'))
 
-        try:
-            # add the track to the midi file
-            self.mid.tracks.append(self.track)
 
-            try:
-                self.clean_midi_file(self.mid)
-            except:
-                print("Error in cleaning midi file")
-                pass
-            # save the midi file
-            self.mid.save(filename)
-            print("Successfully saved midi file")
-        except:
-            pass
+        self.clean_midi_file()
 
-    def clean_midi_file(midi_file):
-        for i, track in enumerate(midi_file.tracks):
-            note_on_times = {}
-            msgs_to_remove = []
-            for j, msg in enumerate(track):
-                if msg.type == 'note_on':
-                    if msg.note in note_on_times and note_on_times[msg.note] > 0:
-                        msgs_to_remove.append(j)
-                    else:
-                        note_on_times[msg.note] = msg.time
-                elif msg.type == 'note_off':
-                    if msg.note not in note_on_times or note_on_times[msg.note] == 0:
-                        msgs_to_remove.append(j)
-                    else:
-                        note_on_times[msg.note] = 0
+        # add the track to the midi file
+        self.mid.tracks.append(self.track)
+        # save the midi file
+        self.mid.save(filename)
+        print("Successfully saved midi file")
 
-            for index in sorted(msgs_to_remove, reverse=True):
-                del track[index]
 
-    def sort_midi_file(midi_file):
+    def clean_midi_file(self):
+        note_on_times = {}
+        msgs_to_remove = []
+        for j, msg in enumerate(self.track):
+            if msg.type == 'note_on':
+                if msg.note in note_on_times and note_on_times[msg.note] > 0:
+                    msgs_to_remove.append(j)
+                else:
+                    note_on_times[msg.note] = msg.time  # update the time for this note
+            elif msg.type == 'note_off':
+                if msg.note not in note_on_times or note_on_times[msg.note] == 0:
+                    msgs_to_remove.append(j)
+                else:
+                    note_on_times[msg.note] = 0
+            if msg.time > 100 and j not in msgs_to_remove:
+                msgs_to_remove.append(j)
+        for index in sorted(msgs_to_remove, reverse=True):
+            self.track.pop(index)
+
+
+    def sort_midi_file(self, midi_file):
         for track in midi_file.tracks:
             # Sort messages by time
             track.sort(key=lambda msg: msg.time)
@@ -255,10 +251,10 @@ def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16
         raise ValueError("Error in processing log file")
 
     try:
-        if count % 50 == 0:
+        if count % 200 == 0:
             # save the midi file
             midi_generator.save_midi('./adj_sim_outputs/midi/simulation.mid')
     except:
-        return None, None, None
+        raise ValueError("Error in saving midi file")
 
     return generate_piano_roll(midi_generator.mid, start=start, end=end)
