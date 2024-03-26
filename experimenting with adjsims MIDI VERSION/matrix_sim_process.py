@@ -129,9 +129,15 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
                 print("Simulation took too long, stopping")
                 failed_simulations +=1
             else:
-                print("Sim took", time.time() - start_time, "seconds")
+                #print("Sim took", time.time() - start_time, "seconds")
                 roll, durations, _ = process_adjsim_log(instruments=instruments, note_levels=note_levels, gen2_output=gen2_output[index][10:], count=count, start=start, end=end)
                 # convert roll, duration to numpy array 2, 128, 100
+
+                if roll is None:
+                    failed_simulations += 1
+                    midi_rolls.append(output)
+                    continue
+
                 output[0] = roll
                 output[1] = durations
         except:

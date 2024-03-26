@@ -199,13 +199,14 @@ class TestMultiModalGAN(unittest.TestCase):
         print("Starting setup of model...")
         start = time.time()
         mmgan = MultiModalGAN(z_dim=noise_dim, adj_size=adj_size, roll_size=roll_size, input_dim=max_beat_length, output_dim=gen2_output_dim, instrument=0, start=start, end=start+sequence_length, device=device)
-        criterion = nn.BCEWithLogitsLoss()
+        #criterion = nn.BCEWithLogitsLoss()
+        criterion = nn.L1Loss()
         gen_opt = torch.optim.Adam(mmgan.parameters(), lr=0.01)
-        scheduler = StepLR(gen_opt, step_size=30, gamma=0.1)
-        #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(gen_opt, 'min', patience=10)
+        #scheduler = StepLR(gen_opt, step_size=30, gamma=0.1)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(gen_opt, 'min', patience=10)
         print("Model setup took", time.time() - start, "seconds")
 
-        num_epochs = 30
+        num_epochs = 100
         print_interval = 10
         save_interval = 5  # Save the model every 5 epochs
 
@@ -223,13 +224,13 @@ class TestMultiModalGAN(unittest.TestCase):
                 noise1 = torch.randn(batch_size, noise_dim, device=device)
                 noise2 = torch.randn(batch_size, noise_dim, device=device)
                 real = torch.ones(batch_size, 1, device=device).view(-1)
+                gen_opt.zero_grad()
                 fake, failed_sim_count = mmgan(noise1, noise2, beats, count)
                 fake = fake.squeeze(1)
                 gen_loss = criterion(fake, real)
                 gen_loss.backward()
                 gen_opt.step()
-                gen_opt.zero_grad()
-                scheduler.step()
+                scheduler.step(gen_loss)
 
                 """
                 start = time.time()

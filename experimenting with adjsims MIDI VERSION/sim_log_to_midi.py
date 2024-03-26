@@ -107,6 +107,8 @@ class MidiGenerator:
         # calculate midi time based on value in array1
         midi_time = max(0,int(float(array1)))
 
+
+        #TO-DO THIS IS A BIT OF A WORK AROUND.... SHOULD NOT BE NEEDED
         if self.previous_time > midi_time:
             midi_time = self.previous_time
         self.previous_time = midi_time
@@ -166,13 +168,10 @@ class MidiGenerator:
         try:
             # add the track to the midi file
             self.mid.tracks.append(self.track)
-        except:
-            print("Error in adding track to midi file")
-        try:
             # save the midi file
             self.mid.save(filename)
         except:
-            print("Error in saving midi file")
+            pass
 
 class LogLineProcessor:
     def __init__(self, regex_format):
@@ -212,8 +211,11 @@ def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16
     except:
         raise ValueError("Error in processing log file")
 
-    if count % 50 == 0:
-        # save the midi file
-        midi_generator.save_midi('./adj_sim_outputs/midi/simulation.mid')
+    try:
+        if count % 50 == 0:
+            # save the midi file
+            midi_generator.save_midi('./adj_sim_outputs/midi/simulation.mid')
+    except:
+        return None, None, None
 
     return generate_piano_roll(midi_generator.mid, start=start, end=end)
