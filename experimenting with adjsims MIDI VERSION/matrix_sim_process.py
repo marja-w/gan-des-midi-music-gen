@@ -16,10 +16,15 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
     num_aug = 3
     midi_rolls = []
 
+    start = int(start)
+    end = int(end)
+
     size = adj_size[0]
 
     gen1_output = gen1_output.cpu().detach().numpy()
     gen2_output = gen2_output.cpu().detach().numpy()
+
+    failed_simulations = 0
 
     for index, matrix in enumerate(gen1_output):
 
@@ -28,8 +33,9 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
 
         # select source and sink nodes based on the values in the 23rd row where the values are between 0 and 1
         sources = np.where(matrix[size - num_aug] > gen2_output[index][0])
-        if len(sources[0]) == 0:
-            sources = np.random.choice(size - num_aug, size=size // 8, replace=False)
+        #sources = np.where(matrix[size - num_aug] > 0.5 )
+        if len(sources[0]) == 0 or len(sources[0] == size - num_aug):
+            sources = np.random.choice(size - num_aug, size=(size - num_aug) // 8, replace=False)
         else:
             sources = sources[0]
 
@@ -78,7 +84,7 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
                 sucess = False
 
         if not sucess:
-            midi_rolls.append(np.zeros((128, 100)))
+            midi_rolls.append(np.zeros((2,128, end-start)))
             continue
 
         for i in sources:
@@ -93,7 +99,7 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
         seeds = np.random.randint(0, 99999, size=1)
         sim_matrix = matrix[:size - num_aug, :size - num_aug]
 
-        num_customers = int(1000*gen2_output[index][6])
+        num_customers = max(1000,int(3000*gen2_output[index][6]))
 
         """
         print(sim_matrix.shape, len(distributions), len(queue_list), seeds, gen2_output[index][5], gen2_output[index][6])
@@ -107,33 +113,37 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
 
         sim = Sim(sim_matrix, distributions, queue_list, seeds=seeds, log_path="logs/", generate_log=True,
                     animation=False, record_history=False, logging_mode='Music', max_sim_time=min(float(gen2_output[index][5]),1.0))
-        start = time.time()
         
+        output = np.zeros((2, 128,  end - start))
         if num_customers == 0:
             num_customers = 200
-
+        start_time = time.time()
         try:
             sim_thread = threading.Thread(target=run_simulation, args=(sim, num_customers))
 
             sim_thread.start()
 
-            sim_thread.join(timeout=2.0)
+            sim_thread.join(timeout=2.5)
 
             if sim_thread.is_alive():
                 print("Simulation took too long, stopping")
-                roll = np.zeros((128, 100))
+                failed_simulations +=1
             else:
-
-                print("Sim took", time.time() - start, "seconds")
-                roll, _, _ = process_adjsim_log(instruments=instruments, note_levels=note_levels, gen2_output=gen2_output[index][10:], count=count)
-
+                print("Sim took", time.time() - start_time, "seconds")
+                roll, durations, _ = process_adjsim_log(instruments=instruments, note_levels=note_levels, gen2_output=gen2_output[index][10:], count=count, start=start, end=end)
+                # convert roll, duration to numpy array 2, 128, 100
+                output[0] = roll
+                output[1] = durations
         except:
             print("Error in simulation thread, using blank piano roll instead.")
-            roll = np.zeros((128, 100))
+            failed_simulations += 1
+            raise ValueError("Error in simulation thread, using blank piano roll instead.")
+            
 
         del sim
 
-        midi_rolls.append(roll)
+        midi_rolls.append(output)
+
 
     # return numpy array for first 5 seconds of each spectrogram
-    return midi_rolls
+    return midi_rolls, failed_simulations

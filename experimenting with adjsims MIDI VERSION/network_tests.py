@@ -33,14 +33,6 @@ from matrix_sim_process import matrix_to_midi
 import time
 
 
-
-def display_images(image_tensor, num_images=25, size=(1, 28, 28)):
-    flatten_image = image_tensor.detach().cpu().view(-1, *size)
-    image_grid = make_grid(flatten_image[:num_images], nrow=5)
-    plt.imshow(image_grid.permute(1, 2, 0).squeeze())
-    plt.show()
-
-
 def get_noise(n_samples, noise_dim, device='cpu'):
     return torch.randn(n_samples, noise_dim, device=device)
 
@@ -49,11 +41,12 @@ def weights_init(m):
     if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
         torch.nn.init.normal_(m.weight, mean=0, std=0.01)
     if isinstance(m, nn.BatchNorm2d):
-        torch.nn.init.normal_(m.weight, mean=0, std=0.01)
-        torch.nn.init.constant_(m.bias, val=0.5)
+        torch.nn.init.normal_(m.weight, mean=0.5, std=0.1)
+        torch.nn.init.constant_(m.bias, val=0)
     if isinstance(m, nn.Linear):
-        torch.nn.init.normal_(m.weight, mean=0, std=0.01)
-        torch.nn.init.constant_(m.bias, val=0.5)
+        torch.nn.init.normal_(m.weight, mean=0.5, std=0.1)
+        torch.nn.init.constant_(m.bias, val=0)
+
 
 
 class Generator(nn.Module):
@@ -74,11 +67,13 @@ class Generator(nn.Module):
         return nn.Sequential(
             nn.Linear(input_dim, output_dim),
             nn.BatchNorm1d(output_dim),
-            nn.ReLU(inplace=True),
+            nn.Sigmoid(),
         )
 
     def forward(self, noise):
-        return self.gen(noise).view(len(noise), -1, self.adj_size[0], self.adj_size[1]).to(self.device)  # change the order of dimensions
+        gen_output = self.gen(noise)
+        gen_output = gen_output.view(len(noise), -1, self.adj_size[0], self.adj_size[1])
+        return gen_output.to(self.device)
 
 
 class BeatGenerator(nn.Module):
@@ -100,7 +95,7 @@ class BeatGenerator(nn.Module):
         return nn.Sequential(
             nn.Linear(input_dim, output_dim),
             nn.BatchNorm1d(output_dim),
-            nn.ReLU(inplace=True),
+            nn.Sigmoid(),
         )
 
     def forward(self, noise, input_tensor=None):
@@ -118,7 +113,7 @@ class Discriminator(nn.Module):
         self.roll_size = roll_size  # store adj_size
         self.device=device
         self.disc = nn.Sequential(
-            self.make_disc_block(im_chan * roll_size[0] * roll_size[1], hidden_dim),
+            self.make_disc_block(im_chan * roll_size[0] * roll_size[1] * roll_size[2], hidden_dim),
             self.make_disc_block(hidden_dim, hidden_dim * 2),
             self.make_disc_block(hidden_dim * 2, 1),
         )
@@ -133,13 +128,29 @@ class Discriminator(nn.Module):
         return self.disc(image)
             
 
+class DiscriminatorCNN(nn.Module):
+    def __init__(self, roll_size=(2, 128, 30), hidden_dim=16):
+        super(DiscriminatorCNN, self).__init__()
+        self.conv1 = nn.Conv2d(roll_size[0], hidden_dim, kernel_size=4, stride=2, padding=1)
+        self.conv2 = nn.Conv2d(hidden_dim, hidden_dim * 2, kernel_size=4, stride=2, padding=1)
+        self.leaky_relu = nn.LeakyReLU(0.2, inplace=True)
+        self.final_size = hidden_dim * 2 * ((roll_size[1] // 4) * (roll_size[2] // 4))
+        self.fc = nn.Linear(self.final_size, 1)
+
+    def forward(self, image):
+        x = self.leaky_relu(self.conv1(image))
+        x = self.leaky_relu(self.conv2(x))
+        x = x.view(len(x), -1)  # Flatten the tensor
+        return self.fc(x)
+
+
 class MultiModalGAN(nn.Module):
-    def __init__(self, z_dim=100, hidden_dim=64, adj_size=(28, 28),roll_size=(128,100), input_dim=50, output_dim=16, instrument=None, start=0, end=100, device='cpu'):
+    def __init__(self, z_dim=100, hidden_dim=64, adj_size=(28, 28),roll_size=(2,128,100), input_dim=50, output_dim=16, instrument=None, start=30, end=60, device='cpu'):
         super(MultiModalGAN, self).__init__()
         self.z_dim = z_dim
         self.generator1 = Generator(z_dim, hidden_dim=hidden_dim, adj_size=adj_size, device=device).to(device)
         self.generator2 = BeatGenerator(z_dim, hidden_dim=hidden_dim, input_dim=input_dim, output_dim=output_dim, device=device).to(device)
-        self.discriminator = Discriminator(roll_size=roll_size, device=device).to(device)
+        self.discriminator = DiscriminatorCNN(roll_size=roll_size).to(device)
         self.instrument = instrument
         self.start = start
         self.end = end
@@ -151,33 +162,30 @@ class MultiModalGAN(nn.Module):
         gen_output2 = self.generator2(noise2, input_tensor)
 
         start = time.time()
-        sim_midi = matrix_to_midi(gen_output1, gen_output2, adj_size=self.adj_size, instrument=self.instrument, start=self.start, end=self.end, count=count)
+        sim_output, failed_sim_count = matrix_to_midi(gen_output1, gen_output2, adj_size=self.adj_size, instrument=self.instrument, start=self.start, end=self.end, count=count)
         print("matrix_to_midi took", time.time() - start, "seconds")
 
-        sim_midi = torch.stack([torch.Tensor(x) for x in sim_midi]).to(self.device)
+        # MAYBE NEEDS TO BE FIXED... WILL TEST ON NEXT ITERATION WITH NEW DATA ( IF NO ERROR, CAN BE REMOVED )
+        sim_output = [torch.from_numpy(batch).float().to(self.device) for batch in sim_output]
+        sim_output = torch.stack(sim_output)
 
+        disc_output = self.discriminator(sim_output)
 
-        print("sim_midi.shape", sim_midi.shape)
-
-        sim_midi = sim_midi.view(len(sim_midi), -1)
-
-        disc_output = self.discriminator(sim_midi)
-
-        return disc_output
+        return disc_output, failed_sim_count
 
 class TestMultiModalGAN(unittest.TestCase):
     def test_training_loop(self, batch_size=16):
 
+        gen2_output_dim = 20 # output dimension of the second generator for simulator parameters
         max_beat_length = 50 # maximum length of the beat vector
         noise_dim = 50 # dimension of the noise vector
-        adj_size = (28,28) # dimensions of the adjacency matrix
-        roll_size = (128,100) # dimensions of the piano roll matrix
-
-        start = 0 # start of the sequence
-        sequence_length = 100 # length of the sequence 
-
-        gen2_output_dim = 20 # output dimension of the second generator
+        adj_size = (32,32) # dimensions of the adjacency matrix
         
+        start = 30 # start of the sequence
+        sequence_length = 30 # length of the sequence generated by simulator   NOTE: TO CHANGE THIS, YOU NEED TO RE-PICKLE THE DATASET WITH THE NEW SEQUENCE LENGTH
+        
+        roll_size = (2,128,sequence_length) # dimensions of the piano roll matrix First channel is note velocity, second channel is time step
+
 
         # get the correct device
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -194,12 +202,17 @@ class TestMultiModalGAN(unittest.TestCase):
         criterion = nn.BCEWithLogitsLoss()
         gen_opt = torch.optim.Adam(mmgan.parameters(), lr=0.01)
         scheduler = StepLR(gen_opt, step_size=30, gamma=0.1)
+        #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(gen_opt, 'min', patience=10)
         print("Model setup took", time.time() - start, "seconds")
 
-        num_epochs = 3
+        num_epochs = 30
         print_interval = 10
+        save_interval = 5  # Save the model every 5 epochs
 
         count = 0
+
+        total_failures = 0
+        total_seen = 0
 
         for epoch in range(num_epochs):
             mmgan.train()
@@ -210,22 +223,44 @@ class TestMultiModalGAN(unittest.TestCase):
                 noise1 = torch.randn(batch_size, noise_dim, device=device)
                 noise2 = torch.randn(batch_size, noise_dim, device=device)
                 real = torch.ones(batch_size, 1, device=device).view(-1)
-                fake = mmgan(noise1, noise2, beats, count).squeeze(1)
-
-                start = time.time()
-                print("Updating weights...")
+                fake, failed_sim_count = mmgan(noise1, noise2, beats, count)
+                fake = fake.squeeze(1)
                 gen_loss = criterion(fake, real)
                 gen_loss.backward()
                 gen_opt.step()
                 gen_opt.zero_grad()
                 scheduler.step()
+
+                """
+                start = time.time()
+                print("Updating weights...")
+                gen_opt.zero_grad()
+                gen_loss = criterion(fake, real) + failed_sim_count/batch_size
+                gen_loss.backward()
+                # Clip the gradients
+                torch.nn.utils.clip_grad_norm_(mmgan.generator1.parameters(), max_norm=1)
+                torch.nn.utils.clip_grad_norm_(mmgan.generator2.parameters(), max_norm=1)
+                gen_opt.step()
+                scheduler.step(gen_loss)
+                #scheduler.step()
                 print("Updating weights took", time.time() - start, "seconds")
+                """
+                total_failures += failed_sim_count
+                total_seen += batch_size
 
                 train_losses.append(gen_loss.item())
                 if (i + 1) % print_interval == 0:
                     print(f'Epoch {epoch + 1}/{num_epochs}, Step {i + 1}/{len(train_loader)}, Train Loss: {gen_loss.item()}')
 
             print(f'Epoch {epoch + 1}/{num_epochs}, Avg Train Loss: {sum(train_losses) / len(train_losses)}')
+            print("Total failures:", total_failures, "Total seen:", total_seen)
+
+            # timeout for 10 seconds
+            time.sleep(30)
+
+            # Save the model every save_interval epochs
+            if (epoch + 1) % save_interval == 0:
+                torch.save(mmgan.state_dict(), f'models//mmgan_epoch_{epoch + 1}.pth')
 
         return train_losses
     

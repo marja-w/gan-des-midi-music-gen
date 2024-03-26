@@ -31,12 +31,14 @@ class FlowBranchOperator:
             probabilities (list): A list of probabilities for each child.
             children (list, optional): A list of children. Defaults to None.
         """
+
         #https://stackoverflow.com/questions/46539431/np-random-choice-probabilities-do-not-sum-to-1
         self.probabilities = np.asarray(probabilities).astype('float64')
         # reduce children to only those with non-zero probability
         self.children = [] if children is None else [children[i] for i in range(len(children)) if self.probabilities[i] > 0]
         # reduce probabilities to only those with non-zero probability
         self.probabilities = [self.probabilities[i] for i in range(len(self.probabilities)) if self.probabilities[i] > 0 ]
+
         # normalize probabilities
         for i in range(len(self.probabilities)):
             if self.probabilities[i] < 0:
@@ -50,12 +52,17 @@ class FlowBranchOperator:
             self.shortest_queue = True
 
     def randomly_select_child(self):
-        try:
-            return np.random.choice(self.children, p=self.probabilities)
-        except:
-            print(self.probabilities)
-            print(self.children)
-            raise ValueError("Probabilities do not sum to 1")  
+        if sum(self.probabilities) != 1:
+            if len(self.children) > 0:
+                return np.random.choice(self.children)
+            else:
+                raise ValueError("No children available to select from")
+        else:
+            try:
+                return np.random.choice(self.children, p=self.probabilities)
+            except:
+                raise ValueError("Probabilities do not sum to 1")
+
         
     def get_children_ids(self):
         return self.children
@@ -367,8 +374,8 @@ class Sim:
                     logging.info(f"Source {i} has distribution {distributions[i]}")
                     logging.info(f"Source {i} has mean inter-arrival time {source.mean_inter_arrival_time}")
 
-        # change Server(distributions[i]) to Server(abs(server),distributions[i]) for more basic model (to be tested later)
         self.servers = {i:Server(distributions[i], server_id=i) for i, server in enumerate(np.diag(adj_matrix)) if server <= 0}
+        # change Server(distributions[i]) to Server(abs(server),distributions[i]) for more basic model (to be tested later)
         for i, server in self.servers.items():
             destiny = [0 for i in range(len(self.adj_matrix))]
             for j, flow in enumerate(self.adj_matrix[i]):

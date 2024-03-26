@@ -20,21 +20,21 @@ class MidiGenerator:
         self.mid = mido.MidiFile()
 
         self.gen2_output = gen2_output
-        self.skip_1 = int(gen2_output[0] * 20)
+        self.skip_1 = max(2,int(gen2_output[0] * 10))
         if self.skip_1 == 0:
             self.skip_1 = np.random.randint(1, 10)
-        self.skip_2 = int(gen2_output[1] * 20)
+        self.skip_2 = max(2, int(gen2_output[1] * 10))
         if self.skip_2 == 0:
             self.skip_2 = np.random.randint(1, 10)
-        self.skip_3 = int(gen2_output[2] * 20)
+        self.skip_3 = max(2, int(gen2_output[2] * 10))
         if self.skip_3 == 0:
             self.skip_3 = np.random.randint(1, 10)
-        self.base = int(gen2_output[3] * 100)
+        self.base = int(gen2_output[3] * 75)
         if self.base == 0:
             self.base = 50
-        self.tempo = int(gen2_output[4] * 10000)
+        self.tempo = min(int(gen2_output[4] * 1000000), 16777215)
         if self.tempo == 0:
-            self.tempo = 50000
+            self.tempo = 500000
 
         self.var = int(gen2_output[5] * int(126/2))
         if self.var == 0:
@@ -43,7 +43,7 @@ class MidiGenerator:
         # select a key_signature based on the values in the 6th row where the values are between 0 and 1
         self.key_signature = int(gen2_output[5] * 11)
         # convert the key signature to a string
-        self.key_signature = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][self.key_signature % 12]
+        self.key_signature = ['C', 'C#', 'D', 'E', 'F', 'F#', 'G', 'G#m', 'A', 'A#m', 'B'][self.key_signature % 11]
 
         self.note_offsets = {}
         if note_levels is not None:
@@ -65,6 +65,10 @@ class MidiGenerator:
 
         self.future_events = {}
 
+        self.generate_midi()
+
+        self.previous_time = 0
+
     def generate_midi(self):
         
         # create a midi file based on the data
@@ -76,8 +80,6 @@ class MidiGenerator:
         # array 1 is the current time
 
         # create a new midi file
-        
-        self.mid.tracks.append(self.track)
 
         # set the tempo
         self.track.append(mido.MetaMessage('set_tempo', tempo=self.tempo, time=0))
@@ -105,6 +107,10 @@ class MidiGenerator:
         # calculate midi time based on value in array1
         midi_time = max(0,int(float(array1)))
 
+        if self.previous_time > midi_time:
+            midi_time = self.previous_time
+        self.previous_time = midi_time
+
 
         if array4 == 'arrival' and  ( int(array2) % self.skip_1 == 0 or int(array2) % self.skip_2 == 0 or int(array2) % self.skip_3 == 0):
             if array3 in self.queue_lengths:
@@ -127,24 +133,23 @@ class MidiGenerator:
                 customer_id = max_customer_id - ( customer_id % max_customer_id)
 
             self.future_events[array3] = {}
-            self.future_events[array3]['time'] = midi_time
+            self.future_events[array3]['time'] = int(midi_time)
             self.future_events[array3]['velocity'] = int(customer_id) % 126
             self.future_events[array3]['service_time'] = int(queue_length)
+
+            # change the instrument to the instrument of the server
+            on_time = int(max(0, int(self.future_events[array3]['time'])))
+            #self.track.append(mido.Message('program_change', program=self.instruments[array3], time=on_time))
+            self.track.append(mido.Message('note_on', channel=0, note=int(self.note_offsets[array3]), velocity=int(self.future_events[array3]['velocity']),  time=on_time))
 
 
         elif array4 == 'departure' and  ( int(array2) % self.skip_1 == 0 or int(array2) % self.skip_2 == 0 or int(array2) % self.skip_3 == 0):
 
             if array3 in self.future_events:
                 # change the instrument to the instrument of the server
-                on_time = max(0, int(self.future_events[array3]['time']))
-                #self.track.append(mido.Message('program_change', program=self.instruments[array3], time=on_time))
-                self.track.append(mido.Message('note_on', channel=0, note=self.note_offsets[array3], velocity=int(self.future_events[array3]['velocity']),  time=on_time))
-
-                # change the instrument to the instrument of the server
-                off_time = max(0,int(self.future_events[array3]['time'] + (midi_time-self.future_events[array3]['time']) + max(0,self.future_events[array3]['service_time']))) 
+                off_time =int( max(0,int(self.future_events[array3]['time'] + (midi_time-self.future_events[array3]['time']) + max(0,self.future_events[array3]['service_time'])))) 
                 #self.track.append(mido.Message('program_change', program=self.instruments[array3], time=off_time))
-                self.track.append(mido.Message('note_off', channel=0, note=self.note_offsets[array3], velocity=self.future_events[array3]['velocity'],  time=off_time))
-
+                self.track.append(mido.Message('note_off', channel=0, note=int(self.note_offsets[array3]), velocity=int(self.future_events[array3]['velocity']),  time=off_time))
 
             if array3 in self.queue_lengths:
                 self.queue_lengths[array3] -= 1
@@ -154,6 +159,20 @@ class MidiGenerator:
         elif array4 == 'processing' and  ( int(array2) % self.skip_1 == 0 or int(array2) % self.skip_2 == 0 or int(array2) % self.skip_3 == 0):
             self.future_events[array3]['service_time'] += midi_time
 
+    def save_midi(self, filename):
+        # add the end of track message
+        self.track.append(mido.MetaMessage('end_of_track'))
+
+        try:
+            # add the track to the midi file
+            self.mid.tracks.append(self.track)
+        except:
+            print("Error in adding track to midi file")
+        try:
+            # save the midi file
+            self.mid.save(filename)
+        except:
+            print("Error in saving midi file")
 
 class LogLineProcessor:
     def __init__(self, regex_format):
@@ -168,7 +187,7 @@ class LogLineProcessor:
 
 import numpy as np
 
-def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16), note_levels=np.random.randint(0, 127, 16), gen2_output=None, count=0):
+def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16), note_levels=np.random.randint(0, 127, 16), gen2_output=None, count=0, start=0, end=30):
     # Example usage:
     log_processor = LogLineProcessor(r"INFO:root:([0-9]*\.[0-9]+|[0-9]+) - ([0-9]*\.[0-9]+|[0-9]+) - ([0-9]*\.[0-9]+|[0-9]+) - (arrival|departure)")
 
@@ -180,18 +199,21 @@ def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16
     if gen2_output is None:
         gen2_output = np.random.rand(20)
 
-    # Read the log file line by line
-    with open("./logs/simulation.log", 'r') as f:
-        for line in f:
-            count += 1
-            if count > max:
-                break
-            processed_line = log_processor.process_line(line)
-            if processed_line:
-                midi_generator.process_line(processed_line)
+    try:
+        # Read the log file line by line
+        with open("./logs/simulation.log", 'r') as f:
+            for line in f:
+                count += 1
+                if count > max:
+                    break
+                processed_line = log_processor.process_line(line)
+                if processed_line:
+                    midi_generator.process_line(processed_line)
+    except:
+        raise ValueError("Error in processing log file")
 
-    if count % 10 == 0:
+    if count % 50 == 0:
         # save the midi file
-        mido.save('adj_sim_outputs/midi/simulation_{}.mid'.format(count), midi_generator.mid)
+        midi_generator.save_midi('./adj_sim_outputs/midi/simulation.mid')
 
-    return generate_piano_roll(midi_generator.mid)
+    return generate_piano_roll(midi_generator.mid, start=start, end=end)

@@ -10,7 +10,9 @@ import pickle
 
 import pretty_midi
 
-def generate_piano_roll(midi_input, sequence_length=100, beats_length=50):
+def generate_piano_roll(midi_input, sequence_length=100, beats_length=50, start=0, end=50):
+    if sequence_length is None:
+        sequence_length = end + 20
     # Check if input is a file path or a mido.MidiFile object
     if isinstance(midi_input, str):
         midi = mido.MidiFile(midi_input)
@@ -21,24 +23,35 @@ def generate_piano_roll(midi_input, sequence_length=100, beats_length=50):
     else:
         raise ValueError("midi_input must be a file path or a mido.MidiFile object")
     # Initialize piano roll array and duration array
-    piano_roll = np.zeros((128, sequence_length))
-    durations = np.zeros((128, sequence_length))
 
-    # Convert MIDI events to piano roll representation
-    my_time = 0
-    note_on_time = np.zeros(128)  # to keep track of when each note was turned on
-    for msg in midi:
-        my_time += msg.time
-        time_step = int(round(my_time))  # convert time to nearest time step
-        if time_step >= sequence_length:
-            break  # stop if the sequence length is exceeded
-        if msg.type == 'note_on':
-            # We use time_step as the x axis (time step) and note number as the y axis
-            piano_roll[msg.note, time_step] = msg.velocity
-            note_on_time[msg.note] = time_step
-        elif msg.type == 'note_off':
-            note_off_time = int(round(note_on_time[msg.note]))
-            durations[msg.note, note_off_time:time_step] = time_step - note_off_time
+    try:
+        piano_roll = np.zeros((128, end-start))
+        durations = np.zeros((128, end-start))
+
+        # Convert MIDI events to piano roll representation
+        my_time = 0
+        note_on_time = np.zeros(128)  # to keep track of when each note was turned on
+        for msg in midi:
+            my_time += msg.time
+            time_step = int(round(my_time))  # convert time to nearest time step
+            if time_step >= sequence_length:
+                break  # stop if the sequence length is exceeded
+            if msg.type == 'note_on':
+                # We use time_step as the x axis (time step) and note number as the y axis
+                piano_roll[msg.note, time_step] = msg.velocity
+                note_on_time[msg.note] = time_step
+            elif msg.type == 'note_off':
+                note_off_time = int(round(note_on_time[msg.note]))
+                durations[msg.note, note_off_time:time_step] = time_step - note_off_time
+    except:
+        print(f"Error in processing midi file {midi_input}")
+
+    if end < len(piano_roll):
+        piano_roll = piano_roll[:, start:end]
+        durations = durations[:, start:end]
+    else:
+        piano_roll = piano_roll[:, :end]
+        durations = durations[:, :end]
 
     # Generate beats
     beats = pretty_midi_obj.get_beats()
@@ -124,7 +137,7 @@ class TestPianoRollGeneration(unittest.TestCase):
     def test_maestro_piano_roll_dataset(self):
         # Test that MaestroPianoRollDataset returns the correct output shape
         midi_files = ['adj_sim_outputs\midi\output.mid', 'adj_sim_outputs\midi\output.mid', 'adj_sim_outputs\midi\output.mid']  # replace with paths to real MIDI files
-        sequence_length = 100
+        sequence_length = 30
         min_beats_length = 50
         dataset = MaestroDatasetMidi(midi_files, sequence_length)
         piano_roll, durations, beats = dataset[0]
