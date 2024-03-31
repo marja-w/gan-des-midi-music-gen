@@ -108,7 +108,7 @@ class MidiGenerator:
         midi_time = max(0,int(float(array1)))
 
 
-        if midi_time < 100 and len(self.track) < 500:
+        if midi_time < 200 and len(self.track) < 500:
             
             #TO-DO THIS IS A BIT OF A WORK AROUND.... SHOULD NOT BE NEEDED ( Think simulator is generating negative times for some distributions)
             if self.previous_time > midi_time:
@@ -169,7 +169,7 @@ class MidiGenerator:
 
         # remove midi messages beyond a certain time
         for msg in self.track:
-            if msg.time > 100:
+            if msg.time > 200:
                 self.track.remove(msg)
 
 
@@ -200,7 +200,7 @@ class MidiGenerator:
                     msgs_to_remove.append(j)
                 else:
                     note_on_times[msg.note] = 0
-            if msg.time > 100 and j not in msgs_to_remove:
+            if msg.time > 200 and j not in msgs_to_remove:
                 msgs_to_remove.append(j)
         for index in sorted(msgs_to_remove, reverse=True):
             self.track.pop(index)

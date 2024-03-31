@@ -32,6 +32,9 @@ from matrix_sim_process import matrix_to_midi
 
 import time
 
+from torchviz import make_dot
+import torchviz
+
 
 def get_noise(n_samples, noise_dim, device='cpu'):
     return torch.randn(n_samples, noise_dim, device=device)
@@ -154,7 +157,7 @@ class DiscriminatorCNN(nn.Module):
 
 
 class MultiModalGAN(nn.Module):
-    def __init__(self, z_dim=100, hidden_dim=64, adj_size=(28, 28),roll_size=(2,128,100), input_dim=50, output_dim=16, instrument=None, start=30, end=60, device='cpu'):
+    def __init__(self, z_dim=100, hidden_dim=64, adj_size=(28, 28),roll_size=(2,128,100), input_dim=50, output_dim=16, instrument=None, start=30, end=80, device='cpu'):
         super(MultiModalGAN, self).__init__()
         self.z_dim = z_dim
         self.generator1 = Generator(z_dim, hidden_dim=hidden_dim, adj_size=adj_size, device=device).to(device)
@@ -207,6 +210,7 @@ class TestMultiModalGAN(unittest.TestCase):
         start = time.time()
         mmgan = MultiModalGAN(z_dim=noise_dim, adj_size=adj_size, roll_size=roll_size, input_dim=max_beat_length, output_dim=gen2_output_dim, instrument=0, start=start, end=start+sequence_length, device=device)
         #criterion = nn.BCEWithLogitsLoss()
+        #criterion = nn.MSELoss()
         criterion = nn.L1Loss()
         gen_opt = torch.optim.Adam(mmgan.parameters(), lr=0.01)
         #scheduler = StepLR(gen_opt, step_size=30, gamma=0.1)
@@ -216,6 +220,8 @@ class TestMultiModalGAN(unittest.TestCase):
         num_epochs = 100
         print_interval = 10
         save_interval = 5  # Save the model every 5 epochs
+
+
 
         count = 0
 
@@ -232,6 +238,7 @@ class TestMultiModalGAN(unittest.TestCase):
                 real = torch.ones(batch_size, 1, device=device).view(-1)
                 gen_opt.zero_grad()
                 fake, failed_sim_count = mmgan(noise1, noise2, beats, count)
+                
                 fake = fake.squeeze(1)
                 gen_loss = criterion(fake, real)
                 gen_loss.backward()
