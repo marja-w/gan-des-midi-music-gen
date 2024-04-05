@@ -16,9 +16,8 @@ import matplotlib.pyplot as plt
 
 from util import get_melspectrogram_db_from_file, get_melspectrogram_db_tensor
 import scipy.io.wavfile as wav
-from matrix_sim_process import matrix_to_wav
 
-from datasets import MaestroPianoRollDataset
+from datasets import MaestroPianoRollDataset  # TODO: does not find MaestroPianoRollDataset
 
 #from network_tests import display_images, get_noise, weights_init
 #from network_tests import Generator, Discriminator
