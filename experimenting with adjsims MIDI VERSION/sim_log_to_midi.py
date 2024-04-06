@@ -131,7 +131,6 @@ class MidiGenerator:
 
                 max_customer_id = self.base + self.var
                 customer_id = self.base - self.var + int(array2)
-
                 if customer_id > max_customer_id:
                     customer_id = max_customer_id - ( customer_id % max_customer_id)
 

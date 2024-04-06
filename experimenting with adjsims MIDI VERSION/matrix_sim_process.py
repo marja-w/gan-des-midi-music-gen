@@ -39,6 +39,8 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
         else:
             sources = sources[0]
 
+        servers = [x for x in np.arange(0, size - num_aug) if x not in sources]
+
         instruments = np.zeros(size - num_aug)
         # select instruments for each server based on the values in 24th row where the values are between 0 and 1 and the instrument is selected based on the value up to 128
         if instrument == None:
@@ -67,7 +69,7 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
             matrix[:, i] = 0
             matrix[i, i] = 0
 
-        for i in [x for x in np.arange(0, size) if x not in sources]:
+        for i in servers:
             matrix[i][i] = 0
 
         sucess = True
@@ -81,6 +83,14 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
             if matrix[i].sum() == 0:
                 sucess = False
 
+        matrix = np.round(matrix, 2)
+
+        # add difference between the sum of row and 1 to some random element in the row other than the diagonal element
+        for i in range(size - num_aug):
+            matrix[i, i] = 0
+            matrix[i, np.random.randint(0, size - num_aug)] += 1 - matrix[i].sum()
+
+
         if not sucess:
             midi_rolls.append(np.zeros((2,128, end-start)))
             continue
@@ -88,7 +98,7 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
         for i in sources:
             matrix[i, i] = 1.0
 
-        for i in [x for x in np.arange(0, size - num_aug) if x not in sources]:
+        for i in servers:
             matrix[i][i] = -1.0
 
         queue_list = [127] * size
