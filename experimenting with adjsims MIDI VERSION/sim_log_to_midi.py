@@ -250,10 +250,11 @@ def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16
         raise ValueError("Error in processing log file")
 
     try:
-        if count % 200 == 0:
+        if count % 25 == 0:
             # save the midi file
             midi_generator.save_midi('./adj_sim_outputs/midi/simulation.mid')
     except:
+        print("Error in saving midi file")
         raise ValueError("Error in saving midi file")
 
     return generate_piano_roll(midi_generator.mid, start=start, end=end)

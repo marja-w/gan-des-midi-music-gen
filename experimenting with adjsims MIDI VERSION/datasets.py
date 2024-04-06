@@ -71,9 +71,9 @@ def generate_piano_roll(midi_input, sequence_length=100, beats_length=50, start=
 
 # USES PICKLE FILE
 class MaestroDatasetPickle(Dataset):
-    def __init__(self,  root_dir, sequence_length=100, beats_length=50, device='cpu'):
+    def __init__(self,  pickle_file_name, sequence_length=100, beats_length=50, device='cpu'):
         self.device = device
-        with open('data\\preprocessed_data.pkl', 'rb') as f:
+        with open('data\\'+pickle_file_name, 'rb') as f:
             self.data = pickle.load(f)
 
     def __len__(self):

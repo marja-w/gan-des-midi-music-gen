@@ -157,7 +157,7 @@ class DiscriminatorCNN(nn.Module):
 
 
 class MultiModalGAN(nn.Module):
-    def __init__(self, z_dim=100, hidden_dim=64, adj_size=(28, 28),roll_size=(2,128,100), input_dim=50, output_dim=16, instrument=None, start=30, end=80, device='cpu'):
+    def __init__(self, z_dim=100, hidden_dim=64, adj_size=(28, 28),roll_size=(2,128,50), input_dim=50, output_dim=16, instrument=None, start=30, end=80, device='cpu'):
         super(MultiModalGAN, self).__init__()
         self.z_dim = z_dim
         self.generator1 = Generator(z_dim, hidden_dim=hidden_dim, adj_size=adj_size, device=device).to(device)
@@ -172,19 +172,18 @@ class MultiModalGAN(nn.Module):
     def forward(self, noise1, noise2, input_tensor, count):
         gen_output1 = self.generator1(noise1)
         gen_output2 = self.generator2(noise2, input_tensor)
-
         sim_output, failed_sim_count = matrix_to_midi(gen_output1, gen_output2, adj_size=self.adj_size, instrument=self.instrument, start=self.start, end=self.end, count=count)
 
-        # MAYBE NEEDS TO BE FIXED... WILL TEST ON NEXT ITERATION WITH NEW DATA ( IF NO ERROR, CAN BE REMOVED )
+        # Convert simulated output to tensors
         sim_output = [torch.from_numpy(batch).float().to(self.device) for batch in sim_output]
         sim_output = torch.stack(sim_output)
 
-        disc_output = self.discriminator(sim_output)
-
-        return disc_output, failed_sim_count
+        return self.discriminator(sim_output), failed_sim_count
 
 class TestMultiModalGAN(unittest.TestCase):
     def test_training_loop(self, batch_size=16):
+
+        torch.autograd.set_detect_anomaly(True)
 
         gen2_output_dim = 20 # output dimension of the second generator for simulator parameters
         max_beat_length = 50 # maximum length of the beat vector
@@ -212,16 +211,19 @@ class TestMultiModalGAN(unittest.TestCase):
         #criterion = nn.BCEWithLogitsLoss()
         #criterion = nn.MSELoss()
         criterion = nn.L1Loss()
-        gen_opt = torch.optim.Adam(mmgan.parameters(), lr=0.01)
-        #scheduler = StepLR(gen_opt, step_size=30, gamma=0.1)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(gen_opt, 'min', patience=10)
+
+        # Create separate optimizers for the generator and the discriminator
+        #gen_opt = torch.optim.Adam(mmgan.generator.parameters(), lr=0.01)
+        gen1_opt = torch.optim.Adam(mmgan.generator1.parameters(), lr=0.01)
+        gen2_opt = torch.optim.Adam(mmgan.generator2.parameters(), lr=0.01)
+        gen_opt = torch.optim.Adam(list(mmgan.generator1.parameters()) + list(mmgan.generator2.parameters()), lr=0.01)
+        disc_opt = torch.optim.Adam(mmgan.discriminator.parameters(), lr=0.01)
+
         print("Model setup took", time.time() - start, "seconds")
 
         num_epochs = 100
         print_interval = 10
         save_interval = 5  # Save the model every 5 epochs
-
-
 
         count = 0
 
@@ -230,47 +232,75 @@ class TestMultiModalGAN(unittest.TestCase):
 
         for epoch in range(num_epochs):
             mmgan.train()
-            train_losses = []
+            disc_losses = []
+            gen_losses = []
+
             for i, (piano_roll, durations, beats) in enumerate(train_loader):
-                count += 1
+                
+
                 noise1 = torch.randn(batch_size, noise_dim, device=device)
                 noise2 = torch.randn(batch_size, noise_dim, device=device)
-                real = torch.ones(batch_size, 1, device=device).view(-1)
-                gen_opt.zero_grad()
-                fake, failed_sim_count = mmgan(noise1, noise2, beats, count)
-                
-                fake = fake.squeeze(1)
-                gen_loss = criterion(fake, real)
-                gen_loss.backward()
-                gen_opt.step()
-                scheduler.step(gen_loss)
+                real = torch.ones(batch_size).to(device)
+                fake_label = torch.zeros(batch_size).to(device)
 
-                """
-                start = time.time()
-                print("Updating weights...")
+                # Load pickled tensors
+                real_data = torch.stack([piano_roll.to(device), durations.to(device)]).permute(1, 0, 2, 3)
+
+                # Train Discriminator
+                disc_opt.zero_grad()
+                fake_output, failed_sim_count = mmgan(noise1, noise2, beats, count)
+                disc_fake_loss = criterion(fake_output.squeeze(), fake_label)
+                disc_real_loss = criterion(mmgan.discriminator(real_data).squeeze(), real)
+                disc_loss = disc_fake_loss + disc_real_loss
+                disc_loss.backward()
+                disc_opt.step()
+                disc_opt.zero_grad()
+
+                count += batch_size
+
+                # Train both generators
                 gen_opt.zero_grad()
-                gen_loss = criterion(fake, real) + failed_sim_count/batch_size
+                fake_output, failed_sim_count = mmgan(noise1, noise2, beats, count)
+                gen_loss = criterion(fake_output.squeeze(), real)
                 gen_loss.backward()
-                # Clip the gradients
-                torch.nn.utils.clip_grad_norm_(mmgan.generator1.parameters(), max_norm=1)
-                torch.nn.utils.clip_grad_norm_(mmgan.generator2.parameters(), max_norm=1)
                 gen_opt.step()
-                scheduler.step(gen_loss)
-                #scheduler.step()
-                print("Updating weights took", time.time() - start, "seconds")
+                
                 """
+                # Train generator 1
+                gen1_opt.zero_grad()
+                fake_output, failed_sim_count = mmgan(noise1, noise2, beats, 1)
+                gen1_loss = criterion(fake_output.squeeze(), real)
+                gen1_loss.backward()
+                gen1_opt.step()
+                gen1_opt.zero_grad()
+
+                # Train generator 2
+                gen2_opt.zero_grad()
+                fake_output, failed_sim_count = mmgan(noise1, noise2, beats, 1)
+                gen2_loss = criterion(fake_output.squeeze(), real)
+                gen2_loss.backward()
+                gen2_opt.step()
+                gen2_opt.zero_grad()
+                """
+
                 total_failures += failed_sim_count
                 total_seen += batch_size
 
-                train_losses.append(gen_loss.item())
-                if (i + 1) % print_interval == 0:
-                    print(f'Epoch {epoch + 1}/{num_epochs}, Step {i + 1}/{len(train_loader)}, Train Loss: {gen_loss.item()}, Failures: {failed_sim_count}')
+                disc_losses.append(disc_loss.item())
+                gen_losses.append(gen_loss.item())
 
-            print(f'Epoch {epoch + 1}/{num_epochs}, Avg Train Loss: {sum(train_losses) / len(train_losses)}')
+                if i % 2 == 0:
+                    print(f'Epoch {epoch + 1}/{num_epochs}, Batch {i}/{len(train_loader)}, Avg Disc Loss: {sum(disc_losses) / len(disc_losses)}, Avg Gen1 Loss: {sum(gen_losses) / len(gen_losses)}')
+
+            if (epoch + 1) % print_interval == 0:
+
+                print(f'Epoch {epoch + 1}/{num_epochs}, Avg Disc Loss: {sum(disc_losses) / len(disc_losses)}, Avg Gen Loss: {sum(gen_losses) / len(gen_losses)}')
+            
             print("Total failures:", total_failures, "Total seen:", total_seen)
 
+
             # timeout for 10 seconds
-            time.sleep(30)
+            time.sleep(10)
 
             # Save the model every save_interval epochs
             if (epoch + 1) % save_interval == 0:
