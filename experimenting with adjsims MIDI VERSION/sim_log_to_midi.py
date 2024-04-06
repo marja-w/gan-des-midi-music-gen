@@ -250,7 +250,7 @@ def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16
         raise ValueError("Error in processing log file")
 
     try:
-        if count % 25 == 0:
+        if count % 100 == 0:
             # save the midi file
             midi_generator.save_midi('./adj_sim_outputs/midi/simulation.mid')
     except:

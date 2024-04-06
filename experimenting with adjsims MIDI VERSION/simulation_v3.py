@@ -47,7 +47,7 @@ class FlowBranchOperator:
         self.probabilities = [self.probabilities[i] / sum(self.probabilities) for i in range(len(self.probabilities))]
 
         self.shortest_queue = False
-        if np.sum(self.probabilities) > 1 and origin is not None:
+        if np.abs(1-np.sum(self.probabilities)) > 0.0001 and origin is not None:
             logging.info(f"{origin} branch method set as shortest queue")
             self.shortest_queue = True
 

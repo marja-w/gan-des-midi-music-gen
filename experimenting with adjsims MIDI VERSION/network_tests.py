@@ -178,7 +178,8 @@ class MultiModalGAN(nn.Module):
         sim_output = [torch.from_numpy(batch).float().to(self.device) for batch in sim_output]
         sim_output = torch.stack(sim_output)
 
-        return self.discriminator(sim_output), failed_sim_count
+
+        return self.discriminator(sim_output),failed_sim_count
 
 class TestMultiModalGAN(unittest.TestCase):
     def test_training_loop(self, batch_size=16):
@@ -213,9 +214,6 @@ class TestMultiModalGAN(unittest.TestCase):
         criterion = nn.L1Loss()
 
         # Create separate optimizers for the generator and the discriminator
-        #gen_opt = torch.optim.Adam(mmgan.generator.parameters(), lr=0.01)
-        gen1_opt = torch.optim.Adam(mmgan.generator1.parameters(), lr=0.01)
-        gen2_opt = torch.optim.Adam(mmgan.generator2.parameters(), lr=0.01)
         gen_opt = torch.optim.Adam(list(mmgan.generator1.parameters()) + list(mmgan.generator2.parameters()), lr=0.01)
         disc_opt = torch.optim.Adam(mmgan.discriminator.parameters(), lr=0.01)
 
@@ -264,23 +262,23 @@ class TestMultiModalGAN(unittest.TestCase):
                 gen_loss = criterion(fake_output.squeeze(), real)
                 gen_loss.backward()
                 gen_opt.step()
-                
                 """
-                # Train generator 1
-                gen1_opt.zero_grad()
-                fake_output, failed_sim_count = mmgan(noise1, noise2, beats, 1)
-                gen1_loss = criterion(fake_output.squeeze(), real)
-                gen1_loss.backward()
-                gen1_opt.step()
-                gen1_opt.zero_grad()
+                # Train Discriminator
+                disc_opt.zero_grad()
+                gen_opt.zero_grad()
+                fake_output, failed_sim_count = mmgan(noise1, noise2, beats, count)
+                disc_fake_loss = criterion(fake_output.clone().squeeze(), fake_label)
+                disc_real_loss = criterion(mmgan.discriminator(real_data).squeeze(), real)
+                disc_loss = disc_fake_loss + disc_real_loss
+                disc_loss.backward()
+                disc_opt.step()
 
-                # Train generator 2
-                gen2_opt.zero_grad()
-                fake_output, failed_sim_count = mmgan(noise1, noise2, beats, 1)
-                gen2_loss = criterion(fake_output.squeeze(), real)
-                gen2_loss.backward()
-                gen2_opt.step()
-                gen2_opt.zero_grad()
+                count += batch_size
+
+                # Train both generators
+                gen_loss = criterion(fake_output.squeeze(), torch.ones(batch_size).to(device))
+                gen_loss.backward()
+                gen_opt.step()
                 """
 
                 total_failures += failed_sim_count
@@ -289,8 +287,9 @@ class TestMultiModalGAN(unittest.TestCase):
                 disc_losses.append(disc_loss.item())
                 gen_losses.append(gen_loss.item())
 
-                if i % 2 == 0:
+                if i % 5 == 0:
                     print(f'Epoch {epoch + 1}/{num_epochs}, Batch {i}/{len(train_loader)}, Avg Disc Loss: {sum(disc_losses) / len(disc_losses)}, Avg Gen1 Loss: {sum(gen_losses) / len(gen_losses)}')
+                    print("Total failures:", total_failures, "Total seen:", total_seen)
 
             if (epoch + 1) % print_interval == 0:
 
@@ -306,7 +305,7 @@ class TestMultiModalGAN(unittest.TestCase):
             if (epoch + 1) % save_interval == 0:
                 torch.save(mmgan.state_dict(), f'models//mmgan_{adj_size[0]}_{adj_size[1]}_epoch_{epoch + 1}.pth')
 
-        return train_losses
+        return disc_losses, gen_losses
     
 if __name__ == '__main__':
     unittest.main()

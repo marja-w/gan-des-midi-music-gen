@@ -16,6 +16,8 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
     num_aug = 3
     midi_rolls = []
 
+    debug_print = False
+
     start = int(start)
     end = int(end)
 
@@ -67,56 +69,54 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
         for i in range(dim):
             # distributions.append(['exponential', 1+matrix[size-num_aug+2,i]])
             if i in sources:
-                distributions.append(['exponential', np.abs(gen2_output[index][1] * 50), np.abs( gen2_output[index][2] * 50) ])
+                distributions.append(['normal', np.abs(gen2_output[index][1] * 50), np.abs( gen2_output[index][2] * 50) ])
             else:
-                distributions.append(['exponential', np.abs(gen2_output[index][3] * 10), np.abs(gen2_output[index][4] * 10) ])
+                distributions.append(['normal', np.abs(gen2_output[index][3] * 10), np.abs(gen2_output[index][4] * 10) ])
         # print("Distributions:", distributions)
 
+
+        sim_matrix = matrix[:dim, :dim]
+
         for i in sources:
-            matrix[:, i] = 0.0
-            matrix[i, i] = 0.0
+            sim_matrix[:, i] = 0.0
+            sim_matrix[i, i] = 0.0
 
         for i in servers:
-            matrix[i][i] = 0.0
+            sim_matrix[i][i] = 0.0
+
+
+        # Convert to float64 for higher precision
+        sim_matrix = sim_matrix.astype(np.float64)
 
         # Add a small constant to the sum of each row to ensure it's never 0
-        row_sums = np.abs(matrix.sum(axis=1, keepdims=True))
+        row_sums = sim_matrix.sum(axis=1, keepdims=True)
 
         # Normalize the matrix within float32 range
-        matrix = matrix / row_sums
+        sim_matrix = sim_matrix / row_sums
 
-        matrix = np.round(matrix, 6)
-
-        matrix = np.nan_to_num(matrix)
-
-        # change to float32
-        matrix = matrix.astype(np.float32)
+        # Handle the case where row sum is 0
+        sim_matrix[np.isnan(sim_matrix)] = 0
 
         # add difference between the sum of row and 1 to some random element in the row other than the diagonal element
         for i in range(dim):
-            matrix[i, i] = 0
-            matrix[i, np.random.choice([x for x in range(dim) if x != i]) ] += 1 - matrix[i].sum()
-
-
-        for i in range(dim):
-            if i in sources:
-                matrix[i, i] = 1.0
-                matrix[:, i] = 0.0
-            else:
-                matrix[i, i] = -1.0
-
-        queue_list = [127] * size
-
+            sim_matrix[i, np.random.choice([x for x in range(dim) if x != i and sim_matrix[i,x] != 0]) ] += 1 - sim_matrix[i].sum()
 
         
 
+        for i in sources:
+            sim_matrix[i,i] = 1.0
+
+        for i in servers:
+            sim_matrix[i,i] = -1.0
+
+        queue_list = [2*127] * dim
+
         np.random.seed(np.random.randint(0, 99999, size=1))
         seeds = np.random.randint(0, 99999, size=1)
-        sim_matrix = matrix[:dim, :dim]
 
         num_customers = max(1000,int(3000*gen2_output[index][6]))
 
-        if count % 1000 == 0:
+        if count % 1000 == 0 and debug_print:
             print("Generated", count, "simulations")
             print("Sources:", sources)
             print("Servers:", servers)
@@ -130,13 +130,10 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
             print("Queue List:", queue_list)
             print("Count:", count)
             start_time = time.time()
+            for i in range(dim):
+                print("Row", i, "diag", sim_matrix[i, i], "sum", sim_matrix[i].sum())
 
-            plot_input_matrix(sim_matrix, sources, servers)
 
-        #print("Matrix:", sim_matrix)
-
-        #for i in range(dim):
-           # print("Row", i, "diag", sim_matrix[i, i], "sum", sim_matrix[i].sum())
         """
         print(sim_matrix.shape, len(distributions), len(queue_list), seeds, gen2_output[index][5], gen2_output[index][6])
         print("dist", distributions)
@@ -151,7 +148,7 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
                     animation=False, record_history=False, logging_mode='Music', max_sim_time=min(float(gen2_output[index][5]),1.0))
         
         output = np.zeros((2, 128,  end - start))
-        if num_customers == 0:
+        if num_customers < 200:
             num_customers = 200
         start_time = time.time()
         try:
@@ -179,7 +176,7 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
             failed_simulations += 1
             raise ValueError("Error in simulation thread, using blank piano roll instead.")
 
-        if count % 1000 == 0:
+        if count % 1000 == 0 and debug_print:
             print("Time taken for simulation", time.time() - start_time)
             
 
