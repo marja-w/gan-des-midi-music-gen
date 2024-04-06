@@ -172,7 +172,7 @@ class MultiModalGAN(nn.Module):
     def forward(self, noise1, noise2, input_tensor, count):
         gen_output1 = self.generator1(noise1)
         gen_output2 = self.generator2(noise2, input_tensor)
-        sim_output, failed_sim_count = matrix_to_midi(gen_output1, gen_output2, adj_size=self.adj_size, instrument=self.instrument, start=self.start, end=self.end, count=count)
+        sim_output, failed_sim_count = matrix_to_midi(gen_output1.detach(), gen_output2.detach(), adj_size=self.adj_size, instrument=self.instrument, start=self.start, end=self.end, count=count)
 
         # Convert simulated output to tensors
         sim_output = [torch.from_numpy(batch).float().to(self.device) for batch in sim_output]
@@ -234,7 +234,7 @@ class TestMultiModalGAN(unittest.TestCase):
             gen_losses = []
 
             for i, (piano_roll, durations, beats) in enumerate(train_loader):
-                
+                count += 1
 
                 noise1 = torch.randn(batch_size, noise_dim, device=device)
                 noise2 = torch.randn(batch_size, noise_dim, device=device)
@@ -253,8 +253,6 @@ class TestMultiModalGAN(unittest.TestCase):
                 disc_loss.backward()
                 disc_opt.step()
                 disc_opt.zero_grad()
-
-                count += batch_size
 
                 # Train both generators
                 gen_opt.zero_grad()

@@ -116,7 +116,11 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
 
         num_customers = max(1000,int(3000*gen2_output[index][6]))
 
-        if count % 1000 == 0 and debug_print:
+        this_count = 1
+        if index == 0:
+            this_count = count
+
+        if this_count % 100 == 0 and debug_print:
             print("Generated", count, "simulations")
             print("Sources:", sources)
             print("Servers:", servers)
@@ -161,8 +165,10 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
             if sim_thread.is_alive():
                 print("Simulation took too long, stopping")
                 failed_simulations +=1
+                roll = np.zeros((128, end - start))
+                durations = np.zeros((128, end - start))
             else:
-                roll, durations, _ = process_adjsim_log(instruments=instruments, note_levels=note_levels, gen2_output=gen2_output[index][10:], count=count, start=start, end=end)
+                roll, durations, _ = process_adjsim_log(instruments=instruments, note_levels=note_levels, gen2_output=gen2_output[index][10:], count=this_count, start=start, end=end)
 
                 if roll is None:
                     failed_simulations += 1
@@ -176,7 +182,7 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
             failed_simulations += 1
             raise ValueError("Error in simulation thread, using blank piano roll instead.")
 
-        if count % 1000 == 0 and debug_print:
+        if this_count % 1000 == 0 and debug_print:
             print("Time taken for simulation", time.time() - start_time)
             
 
