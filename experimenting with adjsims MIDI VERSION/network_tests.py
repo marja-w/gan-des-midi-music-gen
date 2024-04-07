@@ -18,6 +18,10 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 from torch.utils.data.sampler import SubsetRandomSampler
 
+import pickle
+
+import os
+
 from util import get_melspectrogram_db_from_file, get_melspectrogram_db_tensor
 import scipy.io.wavfile as wav
 
@@ -208,7 +212,18 @@ class TestMultiModalGAN(unittest.TestCase):
 
         print("Starting setup of model...")
         start = time.time()
+
+        # Initialize the model
         mmgan = MultiModalGAN(z_dim=noise_dim, adj_size=adj_size, roll_size=roll_size, input_dim=max_beat_length, output_dim=gen2_output_dim, instrument=0, start=start, end=start+sequence_length, device=device)
+
+        # Check if a saved model exists and load it
+        model_path = 'path_to_your_saved_model.pth'   # CHANGE THIS TO THE PATH OF YOUR SAVED MODEL WHEN YOU WANT TO CONTINUE TRAINING
+        if os.path.isfile(model_path):
+            mmgan.load_state_dict(torch.load(model_path))
+            print("Loaded model from", model_path)
+        else:
+            print("No saved model found, starting training from scratch")
+
         #criterion = nn.BCEWithLogitsLoss()
         #criterion = nn.MSELoss()
         criterion = nn.L1Loss()
@@ -216,6 +231,10 @@ class TestMultiModalGAN(unittest.TestCase):
         # Create separate optimizers for the generator and the discriminator
         gen_opt = torch.optim.Adam(list(mmgan.generator1.parameters()) + list(mmgan.generator2.parameters()), lr=0.01)
         disc_opt = torch.optim.Adam(mmgan.discriminator.parameters(), lr=0.01)
+
+        # Create learning rate schedulers for the generator and the discriminator
+        gen_scheduler = StepLR(gen_opt, step_size=30, gamma=0.1)
+        disc_scheduler = StepLR(disc_opt, step_size=30, gamma=0.1)
 
         print("Model setup took", time.time() - start, "seconds")
 
@@ -227,6 +246,9 @@ class TestMultiModalGAN(unittest.TestCase):
 
         total_failures = 0
         total_seen = 0
+
+        gen_loss_history = []
+        disc_loss_history = []
 
         for epoch in range(num_epochs):
             mmgan.train()
@@ -252,7 +274,6 @@ class TestMultiModalGAN(unittest.TestCase):
                 disc_loss = disc_fake_loss + disc_real_loss
                 disc_loss.backward()
                 disc_opt.step()
-                disc_opt.zero_grad()
 
                 # Train both generators
                 gen_opt.zero_grad()
@@ -260,24 +281,6 @@ class TestMultiModalGAN(unittest.TestCase):
                 gen_loss = criterion(fake_output.squeeze(), real)
                 gen_loss.backward()
                 gen_opt.step()
-                """
-                # Train Discriminator
-                disc_opt.zero_grad()
-                gen_opt.zero_grad()
-                fake_output, failed_sim_count = mmgan(noise1, noise2, beats, count)
-                disc_fake_loss = criterion(fake_output.clone().squeeze(), fake_label)
-                disc_real_loss = criterion(mmgan.discriminator(real_data).squeeze(), real)
-                disc_loss = disc_fake_loss + disc_real_loss
-                disc_loss.backward()
-                disc_opt.step()
-
-                count += batch_size
-
-                # Train both generators
-                gen_loss = criterion(fake_output.squeeze(), torch.ones(batch_size).to(device))
-                gen_loss.backward()
-                gen_opt.step()
-                """
 
                 total_failures += failed_sim_count
                 total_seen += batch_size
@@ -286,8 +289,17 @@ class TestMultiModalGAN(unittest.TestCase):
                 gen_losses.append(gen_loss.item())
 
                 if i % 5 == 0:
-                    print(f'Epoch {epoch + 1}/{num_epochs}, Batch {i}/{len(train_loader)}, Avg Disc Loss: {sum(disc_losses) / len(disc_losses)}, Avg Gen1 Loss: {sum(gen_losses) / len(gen_losses)}')
+                    print(f'Epoch {epoch + 1}/{num_epochs}, Batch {i}/{len(train_loader)}, Avg Disc Loss: {sum(disc_losses) / len(disc_losses)}, Avg Gen Loss: {sum(gen_losses) / len(gen_losses)}')
                     print("Total failures:", total_failures, "Total seen:", total_seen)
+    
+
+            disc_scheduler.step()
+            gen_scheduler.step()
+
+            with open(f'losses/disc_losses_epoch_{epoch + 1}.pkl', 'wb') as f:
+                pickle.dump(disc_losses, f)
+            with open(f'losses/gen_losses_epoch_{epoch + 1}.pkl', 'wb') as f:
+                pickle.dump(gen_losses, f)
 
             if (epoch + 1) % print_interval == 0:
 
