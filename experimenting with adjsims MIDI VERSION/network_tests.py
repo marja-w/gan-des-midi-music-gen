@@ -224,9 +224,9 @@ class TestMultiModalGAN(unittest.TestCase):
         else:
             print("No saved model found, starting training from scratch")
 
-        #criterion = nn.BCEWithLogitsLoss()
+        criterion = nn.BCEWithLogitsLoss()
         #criterion = nn.MSELoss()
-        criterion = nn.L1Loss()
+        #criterion_gen = nn.L1Loss()
 
         # Create separate optimizers for the generator and the discriminator
         gen_opt = torch.optim.Adam(list(mmgan.generator1.parameters()) + list(mmgan.generator2.parameters()), lr=0.01)
