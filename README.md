@@ -22,7 +22,7 @@ uing the following command:
 
 Make sure that the path is stored in the system `PATH` variable.
 
-FluidSynth is used to synthesize music from the generated MIDI files.
+FluidSynth is used to synthesize music from the generated MIDI files. We only use it for training the first model of the project (GAN-DES).
 
 # Folder Structure
 
