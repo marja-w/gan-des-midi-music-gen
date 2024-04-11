@@ -194,6 +194,16 @@ class MultiModalGAN(nn.Module):
 
 
         return self.discriminator(sim_output),failed_sim_count
+    
+    def generate_midi(self, noise1, noise2, input_tensor):
+        self.generator1.eval()
+        self.generator2.eval()
+
+        gen_output1 = self.generator1(noise1)
+        gen_output2 = self.generator2(noise2, input_tensor)
+        sim_output, failed_sim_count = matrix_to_midi(gen_output1.detach(), gen_output2.detach(), adj_size=self.adj_size, instrument=self.instrument, start=self.start, end=self.end, generate=True)
+        
+        return sim_output
 
 class TestMultiModalGAN(unittest.TestCase):
     def test_training_loop(self, batch_size=16):
@@ -251,7 +261,7 @@ class TestMultiModalGAN(unittest.TestCase):
 
         num_epochs = 100
         print_interval = 10
-        save_interval = 5  # Save the model every 5 epochs
+        save_interval = 1  # Save the model every 5 epochs
 
         count = 0
 

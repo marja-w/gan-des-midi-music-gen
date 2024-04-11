@@ -69,6 +69,8 @@ class MidiGenerator:
 
         self.previous_time = 0
 
+        self.current_instrument = 0
+
     def generate_midi(self):
         
         # create a midi file based on the data
@@ -108,12 +110,14 @@ class MidiGenerator:
         midi_time = max(0,int(float(array1)))
 
 
+
+
         if midi_time < 200 and len(self.track) < 500:
             
             #TO-DO THIS IS A BIT OF A WORK AROUND.... SHOULD NOT BE NEEDED ( Think simulator is generating negative times for some distributions)
             if self.previous_time > midi_time:
                 midi_time = self.previous_time
-            
+        
 
             if array4 == 'arrival' and  ( int(array2) % self.skip_1 == 0 or int(array2) % self.skip_2 == 0 or int(array2) % self.skip_3 == 0):
                 if array3 in self.queue_lengths:
@@ -139,9 +143,15 @@ class MidiGenerator:
                 self.future_events[array3]['velocity'] = int(customer_id) % 126
                 self.future_events[array3]['service_time'] = int(queue_length)
 
-                # change the instrument to the instrument of the server
+
                 on_time = int(max(self.previous_time, int(self.future_events[array3]['time'])))
                 self.previous_time = on_time
+
+
+                if self.current_instrument != self.instruments[array3]:
+                    self.current_instrument = self.instruments[array3]
+                    self.track.append(mido.Message('program_change', program=self.instruments[array3], time=on_time))
+
                 #self.track.append(mido.Message('program_change', program=self.instruments[array3], time=on_time))
                 self.track.append(mido.Message('note_on', channel=0, note=int(self.note_offsets[array3]), velocity=int(self.future_events[array3]['velocity']),  time=on_time))
 
@@ -153,6 +163,11 @@ class MidiGenerator:
                     #off_time =int( max(0,int(self.future_events[array3]['time'] + (midi_time-self.future_events[array3]['time']) + max(0,self.future_events[array3]['service_time'])))) 
                     off_time = int( max(self.previous_time, int(self.future_events[array3]['time'] + (midi_time-self.future_events[array3]['time']) + max(0,self.future_events[array3]['service_time']))))
                     self.previous_time = off_time
+
+                    if self.current_instrument != self.instruments[array3]:
+                        self.current_instrument = self.instruments[array3]
+                        self.track.append(mido.Message('program_change', program=self.instruments[array3], time=off_time))
+                        
                     #self.track.append(mido.Message('program_change', program=self.instruments[array3], time=off_time))
                     self.track.append(mido.Message('note_off', channel=0, note=int(self.note_offsets[array3]), velocity=int(self.future_events[array3]['velocity']),  time=off_time))
 
@@ -223,7 +238,7 @@ class LogLineProcessor:
 
 import numpy as np
 
-def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16), note_levels=np.random.randint(0, 127, 16), gen2_output=None, count=0, start=0, end=30):
+def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16), note_levels=np.random.randint(0, 127, 16), gen2_output=None, count=0, start=0, end=30, generate=False):
     # Example usage:
     log_processor = LogLineProcessor(r"INFO:root:([0-9]*\.[0-9]+|[0-9]+) - ([0-9]*\.[0-9]+|[0-9]+) - ([0-9]*\.[0-9]+|[0-9]+) - (arrival|departure)")
 
@@ -250,9 +265,11 @@ def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16
         raise ValueError("Error in processing log file")
 
     try:
-        if count % 100 == 0:
+        if count % 100 == 0 and not generate:
             # save the midi file
             midi_generator.save_midi('./adj_sim_outputs/midi/simulation.mid')
+        elif generate:
+            midi_generator.save_midi('./adj_sim_outputs/midi/generation.mid')
     except:
         print("Error in saving midi file")
         raise ValueError("Error in saving midi file")

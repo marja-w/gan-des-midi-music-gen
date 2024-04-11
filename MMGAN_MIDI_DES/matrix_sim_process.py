@@ -12,7 +12,7 @@ import time
 def run_simulation(sim, num_customers):
     sim.run(number_of_customers=num_customers)
 
-def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, start=0, end=150, count=0):
+def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, start=0, end=150, count=0, generate=False):
     num_aug = 3
     midi_rolls = []
 
@@ -168,7 +168,7 @@ def matrix_to_midi(gen1_output, gen2_output, adj_size=(32,32), instrument=None, 
                 roll = np.zeros((128, end - start))
                 durations = np.zeros((128, end - start))
             else:
-                roll, durations, _ = process_adjsim_log(instruments=instruments, note_levels=note_levels, gen2_output=gen2_output[index][10:], count=this_count, start=start, end=end)
+                roll, durations, _ = process_adjsim_log(instruments=instruments, note_levels=note_levels, gen2_output=gen2_output[index][10:], count=this_count, start=start, end=end, generate=generate)
 
                 if roll is None:
                     failed_simulations += 1

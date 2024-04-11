@@ -27,6 +27,8 @@ def matrix_to_wav(matrices, size=20, use_same_instrument=None, start=0, end=174,
         if len(sources[0]) == 0:
             sources = np.random.choice(size - num_aug, size=size // 8, replace=False)
 
+        servers = [x for x in np.arange(0, size - num_aug) if x not in sources]
+
         instruments = np.zeros(size - num_aug)
         # select instruments for each server based on the values in 24th row where the values are between 0 and 1 and the instrument is selected based on the value up to 128
         if use_same_instrument == None:
@@ -57,24 +59,41 @@ def matrix_to_wav(matrices, size=20, use_same_instrument=None, start=0, end=174,
                 distributions.append(['normal', 5 * matrix[size - num_aug + 3, i], 3 * matrix[size - num_aug + 4, i]])
         # print("Distributions:", distributions)
 
-        for i in sources:
-            matrix[:, i] = 0
-            matrix[i, i] = 0
+        dim = size - num_aug
 
-        for i in [x for x in np.arange(0, size) if x not in sources]:
-            matrix[i][i] = 0
-
-        epsilon = 0.0001
-        for i in range(size - num_aug):
-            matrix[i] = matrix[i] / (matrix[i].sum() + epsilon)
+        sim_matrix = matrix[:dim, :dim]
 
         for i in sources:
-            matrix[i, i] = 1.0
+            sim_matrix[:, i] = 0.0
+            sim_matrix[i, i] = 0.0
 
-        for i in [x for x in np.arange(0, size - num_aug) if x not in sources]:
-            matrix[i][i] = -1.0
+        for i in servers:
+            sim_matrix[i][i] = 0.0
 
-        queue_list = [127] * size
+        # Convert to float64 for higher precision
+        sim_matrix = sim_matrix.astype(np.float64)
+
+        # Add a small constant to the sum of each row to ensure it's never 0
+        row_sums = sim_matrix.sum(axis=1, keepdims=True)
+
+        # Normalize the matrix within float32 range
+        sim_matrix = sim_matrix / row_sums
+
+        # Handle the case where row sum is 0
+        sim_matrix[np.isnan(sim_matrix)] = 0
+
+        # add difference between the sum of row and 1 to some random element in the row other than the diagonal element
+        for i in range(dim):
+            sim_matrix[i, np.random.choice([x for x in range(dim) if x != i and sim_matrix[i,x] != 0]) ] += 1 - sim_matrix[i].sum()
+
+        for i in sources:
+            sim_matrix[i,i] = 1.0
+
+        for i in servers:
+            sim_matrix[i,i] = -1.0
+
+        queue_list = [2*127] * dim
+
         length_mel = 0
         count = 0
         while length_mel < 2:
@@ -85,7 +104,7 @@ def matrix_to_wav(matrices, size=20, use_same_instrument=None, start=0, end=174,
                 break
             np.random.seed(np.random.randint(0, 99999, size=1))
             seeds = np.random.randint(0, 99999, size=1)
-            sim_matrix = matrix[:size - num_aug, :size - num_aug]
+
             sim = Sim(sim_matrix, distributions, queue_list, seeds=seeds, log_path="logs/", generate_log=True,
                       animation=False, record_history=False, logging_mode='Music', max_sim_time=0.5)
             sim.run(number_of_customers=1000)

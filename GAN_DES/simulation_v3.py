@@ -31,25 +31,38 @@ class FlowBranchOperator:
             probabilities (list): A list of probabilities for each child.
             children (list, optional): A list of children. Defaults to None.
         """
-        self.probabilities = probabilities
+
+        #https://stackoverflow.com/questions/46539431/np-random-choice-probabilities-do-not-sum-to-1
+        self.probabilities = np.asarray(probabilities).astype('float64')
         # reduce children to only those with non-zero probability
         self.children = [] if children is None else [children[i] for i in range(len(children)) if self.probabilities[i] > 0]
         # reduce probabilities to only those with non-zero probability
-        self.probabilities = [self.probabilities[i] for i in range(len(self.probabilities)) if self.probabilities[i] > 0]
+        self.probabilities = [self.probabilities[i] for i in range(len(self.probabilities)) if self.probabilities[i] > 0 ]
+
         # normalize probabilities
+        for i in range(len(self.probabilities)):
+            if self.probabilities[i] < 0:
+                self.probabilities[i] = 0
+
         self.probabilities = [self.probabilities[i] / sum(self.probabilities) for i in range(len(self.probabilities))]
+
         self.shortest_queue = False
-        if np.sum(self.probabilities) > 1 and origin is not None:
+        if np.abs(1-np.sum(self.probabilities)) > 0.0001 and origin is not None:
             logging.info(f"{origin} branch method set as shortest queue")
             self.shortest_queue = True
 
     def randomly_select_child(self):
-        try:
-            return np.random.choice(self.children, p=self.probabilities)
-        except:
-            print(self.probabilities)
-            print(self.children)
-            raise ValueError("Probabilities do not sum to 1")  
+        if sum(self.probabilities) != 1:
+            if len(self.children) > 0:
+                return np.random.choice(self.children)
+            else:
+                raise ValueError("No children available to select from")
+        else:
+            try:
+                return np.random.choice(self.children, p=self.probabilities)
+            except:
+                raise ValueError("Probabilities do not sum to 1")
+
         
     def get_children_ids(self):
         return self.children
@@ -361,8 +374,8 @@ class Sim:
                     logging.info(f"Source {i} has distribution {distributions[i]}")
                     logging.info(f"Source {i} has mean inter-arrival time {source.mean_inter_arrival_time}")
 
-        # change Server(distributions[i]) to Server(abs(server),distributions[i]) for more basic model (to be tested later)
         self.servers = {i:Server(distributions[i], server_id=i) for i, server in enumerate(np.diag(adj_matrix)) if server <= 0}
+        # change Server(distributions[i]) to Server(abs(server),distributions[i]) for more basic model (to be tested later)
         for i, server in self.servers.items():
             destiny = [0 for i in range(len(self.adj_matrix))]
             for j, flow in enumerate(self.adj_matrix[i]):
@@ -493,7 +506,9 @@ class Sim:
             if self.generate_log and self.total_customers < 100:
                 if self.logging_mode == 'All':
                     logging.info(f"{i+1}: {elapsed_time} elapsed time for {self.Clock} simulation time with {self.total_customers} customers")
-            self.calculate_metrics()
+
+            if self.record_history and self.clock != 0:
+                self.calculate_metrics()
 
 
         if self.generate_log:

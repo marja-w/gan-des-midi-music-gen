@@ -4,7 +4,7 @@ import os
 
 from simulation_v3 import Sim
 
-def matrix_to_wav(matrices=[None], size=32, use_same_instrument=None, sound_font='FluidR3_GM.sf2'):
+def sim_to_wav(matrices=[None], size=32, use_same_instrument=None, sound_font='FluidR3_GM.sf2'):
     num_aug = 5
     
     for index, matrix in enumerate(matrices):
@@ -83,7 +83,7 @@ def matrix_to_wav(matrices=[None], size=32, use_same_instrument=None, sound_font
 
         fs = FluidSynth(sound_font=sound_font, sample_rate=44100)
 
-        output_file = 'adj_sim_outputs\wav\output_'+ str(index) + '.wav'
+        output_file = 'adj_sim_outputs/wav/output_'+ str(index) + '.wav'
 
         # check if the file path exists, if not, create the file
         if not os.path.exists(output_file):
@@ -258,7 +258,7 @@ def process_adjsim_log(n=5000, baseline=70, range=50, instruments=np.arange(0,16
             if processed_line:
                 midi_generator.process_line(processed_line)
 
-    filepath = 'adj_sim_outputs\midi\output.mid' # need to change this if we want to keep the original midi files, not necessary for now
+    filepath = 'adj_sim_outputs/midi/output.mid' # need to change this if we want to keep the original midi files, not necessary for now
 
     # save the output midi to /adj_sim_output/midi/output.mid
     midi_generator.save_midi(filename=filepath) 
