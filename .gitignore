@@ -5914,3 +5914,45 @@ MMGAN_MIDI_DES/data/maestro-v3.0.0/2018/MIDI-Unprocessed_Schubert10-12_MID--AUDI
 MMGAN_MIDI_DES/data/maestro-v3.0.0/2018/MIDI-Unprocessed_Schubert10-12_MID--AUDIO_18_R2_2018_wav.midi
 MMGAN_MIDI_DES/data/maestro-v3.0.0/2018/MIDI-Unprocessed_Schubert10-12_MID--AUDIO_20_R2_2018_wav.midi
 MMGAN_MIDI_DES/fonts/FluidR3_GM.sf2
+experimenting with adjsims/FluidR3_GM.sf2
+experimenting with adjsims/adj_sim_outputs/midi/output.mid
+experimenting with adjsims/adj_sim_outputs/wav/output_0.wav
+experimenting with adjsims/adj_sim_outputs/wav/output_1.wav
+experimenting with adjsims/adj_sim_outputs/wav/output_2.wav
+experimenting with adjsims/adj_sim_outputs/wav/output_3.wav
+experimenting with adjsims/adj_sim_outputs/wav/output_4.wav
+experimenting with adjsims/adj_sim_outputs/wav/output_5.wav
+experimenting with adjsims/adj_sim_outputs/wav/output_6.wav
+experimenting with adjsims/adj_sim_outputs/wav/output_7.wav
+experimenting with adjsims/adj_sim_outputs/wav/output_8.wav
+experimenting with adjsims/adj_sim_outputs/wav/output_9.wav
+experimenting with adjsims/adj_sim_outputs/wav/output_10.wav
+experimenting with adjsims/adj_sim_outputs/wav/output_11.wav
+experimenting with adjsims/adj_sim_outputs/wav/output_12.wav
+experimenting with adjsims/adj_sim_outputs/wav/output_13.wav
+experimenting with adjsims/adj_sim_outputs/wav/output_14.wav
+MMGAN_MIDI_DES/data/preprocessed_data_50.pkl
+MMGAN_MIDI_DES/data/preprocessed_data.pkl
+MMGAN_MIDI_DES/displays/GEN1_architecture
+MMGAN_MIDI_DES/displays/GEN1_architecture.png
+MMGAN_MIDI_DES/displays/GEN2_architecture
+MMGAN_MIDI_DES/displays/GEN2_architecture.png
+MMGAN_MIDI_DES/displays/MMGAN_architecture
+MMGAN_MIDI_DES/displays/MMGAN_architecture.png
+MMGAN_MIDI_DES/displays/output_graph
+MMGAN_MIDI_DES/displays/output_graph_generator
+MMGAN_MIDI_DES/displays/output_graph_generator.png
+MMGAN_MIDI_DES/displays/output_graph.png
+MMGAN_MIDI_DES/models/MAE_loss/mmgan_64_64_epoch_5.pth
+MMGAN_MIDI_DES/models/MAE_loss/mmgan_64_64_epoch_10.pth
+MMGAN_MIDI_DES/models/MAE_loss/mmgan_64_64_epoch_15.pth
+MMGAN_MIDI_DES/models/MAE_loss/mmgan_64_64_epoch_20.pth
+MMGAN_MIDI_DES/models/MAE_loss/mmgan_64_64_epoch_25.pth
+MMGAN_MIDI_DES/models/MAE_loss/mmgan_64_64_epoch_30.pth
+MMGAN_MIDI_DES/models/V1_bad/mmgan_64_64_epoch_15.pth
+MMGAN_MIDI_DES/models/V1_bad/mmgan_64_64_epoch_20.pth
+MMGAN_MIDI_DES/models/V1_bad/mmgan_64_64_epoch_25.pth
+MMGAN_MIDI_DES/models/V1_bad/mmgan_64_64_epoch_30.pth
+MMGAN_MIDI_DES/models/V1_bad/mmgan_64_64_epoch_35.pth
+MMGAN_MIDI_DES/models/V1_bad/mmgan_64_64_epoch_40.pth
+MMGAN_MIDI_DES/models/V1_bad/mmgan_64_64_epoch_45.pth
