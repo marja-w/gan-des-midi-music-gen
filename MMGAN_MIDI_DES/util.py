@@ -117,3 +117,11 @@ def split_audio_data(wav_file_path, hop_length_audio=5, window_size=5):
         else:
             split_wvs.append(waveform[i:i + window_size * sample_rate])
     return split_wvs
+
+
+
+from midi2audio import FluidSynth
+
+def midi_to_audio_fluidsynth(midi_file_path, audio_file_path, sound_font_path):
+    fs = FluidSynth(sound_font_path, sample_rate=22050)
+    fs.midi_to_audio(midi_file_path, audio_file_path)
