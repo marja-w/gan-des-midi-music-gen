@@ -4,6 +4,7 @@ Training of two GAN models on MIDI music data for the task of automated music co
 
 ### Overview
 1. [Requirements](#requirements)
+2. [Demo](demo.ipynb)
 2. [Folder Structure](#folder-structure)
 3. [Meeting Protocol](#meeting-protocol)
 
@@ -20,9 +21,15 @@ uing the following command:
 
 ``choco install fluidsynth``
 
-Make sure that the path is stored in the system `PATH` variable.
+Make sure that the path is stored in the system `PATH` variable and that the sound font file `FluidR3_GM.sf2` is present 
+in each folder that you use FluidSynth in. 
 
 FluidSynth is used to synthesize music from the generated MIDI files. We only use it for training the first model of the project (GAN-DES).
+
+# [Demo](demo.ipynb)
+
+Explore this Jupyter Notebook, for getting a quick overview of what models can be trained and how, as well as listening 
+to some of their output.
 
 # Folder Structure
 
